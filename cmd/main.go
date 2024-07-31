@@ -24,8 +24,13 @@ func main() {
 	}
 
 	log.WithFields(log.Fields{
-		"GitHubToken":   cfg.GitHubToken,
-		"WebhookSecret": cfg.WebhookSecret,
+		"GitHubToken":        cfg.GitHubToken,
+		"WebhookSecret":      cfg.WebhookSecret,
+		"LocalRepoSrcPath":   cfg.LocalRepoSrcPath,
+		"DockerFile":         cfg.DockerFile,
+		"ContainerRegistry":  cfg.ContainerRegistry,
+		"KubeResourcePath":   cfg.KubeResourcePath,
+		"WorkFlowFilePrefix": cfg.WorkFlowFilePrefix,
 	}).Info("Configuration loaded:")
 
 	// TODO: Get the GitHub client
@@ -45,5 +50,4 @@ func main() {
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.WithError(err).Fatal("Failed to start server!")
 	}
-
 }

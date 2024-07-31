@@ -3,21 +3,48 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	defaultLocalRepoSrcFolder = "app"
+	defaultDockerFile         = "Dockerfile"
+	defaultContainerRegistry  = "ghcr.io"
+	defaultKubeResourcePath   = "microk8s-hono-api"
+	defaultWorkFowFilePrefix  = "kube-secrets-deploy"
 )
 
 type Config struct {
-	GitHubToken   string
-	WebhookSecret string
+	GitHubToken        string
+	WebhookSecret      string
+	LocalRepoSrcPath   string
+	DockerFile         string
+	ContainerRegistry  string
+	KubeResourcePath   string
+	WorkFlowFilePrefix string
 }
 
 func LoadConfig() (*Config, error) {
-	config := &Config{
-		GitHubToken:   getEnv("GITHUB_TOKEN", ""),
-		WebhookSecret: getEnv("WEBHOOK_SECRET", ""),
+
+	localRepoSrcPath, err := getLocalRepoSrcPath(getEnv("LOCAL_REPO_SRC", defaultLocalRepoSrcFolder))
+	if err != nil {
+		return nil, err
 	}
 
-	if config.WebhookSecret == "" {
-		return nil, fmt.Errorf("missing required configuration: WEBHOOK_SECRET")
+	config := &Config{
+		GitHubToken:        getEnv("GITHUB_TOKEN", ""),
+		WebhookSecret:      getEnv("WEBHOOK_SECRET", ""),
+		LocalRepoSrcPath:   localRepoSrcPath,
+		DockerFile:         getEnv("DOCKER_FILE", defaultDockerFile),
+		ContainerRegistry:  getEnv("CONTAINER_REGISTRY", defaultContainerRegistry),
+		KubeResourcePath:   getEnv("KUBE_RESOURCE_PATH", defaultKubeResourcePath),
+		WorkFlowFilePrefix: getEnv("WORKFLOW_FILE_PREFIX", defaultWorkFowFilePrefix),
+	}
+
+	if config.WebhookSecret == "" || config.GitHubToken == "" {
+		return nil, fmt.Errorf("missing required configuration")
 	}
 
 	return config, nil
@@ -29,4 +56,13 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func getLocalRepoSrcPath(localRepoSrcFolder string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get user home directory failed: %w", err)
+	}
+	log.Infof("Home directory: %s", homeDir)
+	return filepath.Join(homeDir, localRepoSrcFolder), nil
 }
