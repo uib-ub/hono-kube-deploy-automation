@@ -33,15 +33,29 @@ func main() {
 		"WorkFlowFilePrefix": cfg.WorkFlowFilePrefix,
 	}).Info("Configuration loaded:")
 
-	// TODO: Get the GitHub client
+	// Get the GitHub client
 	githubClient := client.NewGithubClient(cfg.GitHubToken)
 
-	// TODO: Get kubernetes client
+	// Get kubernetes client
+	kubeClient, err := client.NewKubernetesClient(cfg.KubeConfigFile)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to initialize Kubernetes client")
+	}
 
-	// TODO: Get docker client
+	// Get docker client
+	dockerClient, err := client.NewDockerClient(&client.DockerOptions{
+		ContainerRegistry:         cfg.ContainerRegistry,
+		ContainerRegistryPassword: cfg.GitHubToken,
+		Dockerfile:                cfg.DockerFile,
+	})
+	if err != nil {
+		log.WithError(err).Fatal("Failed to initialize Docker client")
+	}
 
-	serverInstance := apiserver.NewServer(githubClient, &apiserver.Options{
-		WebhookSecret: cfg.WebhookSecret,
+	serverInstance := apiserver.NewServer(githubClient, kubeClient, dockerClient, &apiserver.Options{
+		WebhookSecret:      cfg.WebhookSecret,
+		KubeResourcePath:   cfg.KubeResourcePath,
+		WorkFlowFilePrefix: cfg.WorkFlowFilePrefix,
 	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked
 	http.HandleFunc("/webhook", serverInstance.WebhookHandler)

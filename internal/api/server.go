@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -13,16 +14,34 @@ import (
 )
 
 type Options struct {
-	WebhookSecret string
+	WebhookSecret      string
+	KubeResourcePath   string
+	WorkFlowFilePrefix string
 }
 type Server struct {
 	GithubClient *client.GithubClient
+	KubeClient   *client.KubeClient
+	DockerClient *client.DockerClient
 	Options      *Options
 }
 
-func NewServer(githubClient *client.GithubClient, options *Options) *Server {
+type webhookEventData struct {
+	ctx                    context.Context
+	namespace              string
+	githubLoginOwner       string
+	githubRepoFullName     string
+	githubRepoName         string
+	githubRepoIssueNumber  int
+	githubRepoBranch       string
+	githubWorkFlowFileName string
+	imageTag               string
+}
+
+func NewServer(githubClient *client.GithubClient, kubeClient *client.KubeClient, dockerClient *client.DockerClient, options *Options) *Server {
 	return &Server{
 		GithubClient: githubClient,
+		KubeClient:   kubeClient,
+		DockerClient: dockerClient,
 		Options:      options,
 	}
 }

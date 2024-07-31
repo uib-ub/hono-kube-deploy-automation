@@ -19,6 +19,7 @@ const (
 type Config struct {
 	GitHubToken        string
 	WebhookSecret      string
+	KubeConfigFile     string
 	LocalRepoSrcPath   string
 	DockerFile         string
 	ContainerRegistry  string
@@ -36,6 +37,7 @@ func LoadConfig() (*Config, error) {
 	config := &Config{
 		GitHubToken:        getEnv("GITHUB_TOKEN", ""),
 		WebhookSecret:      getEnv("WEBHOOK_SECRET", ""),
+		KubeConfigFile:     getEnv("KUBECONFIG", ""),
 		LocalRepoSrcPath:   localRepoSrcPath,
 		DockerFile:         getEnv("DOCKER_FILE", defaultDockerFile),
 		ContainerRegistry:  getEnv("CONTAINER_REGISTRY", defaultContainerRegistry),
@@ -61,7 +63,7 @@ func getEnv(key, fallback string) string {
 func getLocalRepoSrcPath(localRepoSrcFolder string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("get user home directory failed: %w", err)
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	log.Infof("Home directory: %s", homeDir)
 	return filepath.Join(homeDir, localRepoSrcFolder), nil
