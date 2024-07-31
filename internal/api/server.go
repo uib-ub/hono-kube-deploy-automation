@@ -6,27 +6,33 @@ import (
 	"reflect"
 
 	"github.com/google/go-github/v63/github"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/errors"
 
 	log "github.com/sirupsen/logrus"
 )
 
-type Server struct {
+type Options struct {
 	WebhookSecret string
 }
+type Server struct {
+	GithubClient *client.GithubClient
+	Options      *Options
+}
 
-func NewServer(webhookSecret string) *Server {
+func NewServer(githubClient *client.GithubClient, options *Options) *Server {
 	return &Server{
-		WebhookSecret: webhookSecret,
+		GithubClient: githubClient,
+		Options:      options,
 	}
 }
 
 func (s *Server) WebhookHandler(w http.ResponseWriter, req *http.Request) {
 	// Parse and validate the webhook payload
-	event, err := s.getWebhookEvent(req)
+	event, err := s.GithubClient.GetWebhookEvent(req, s.Options.WebhookSecret)
 	if err != nil {
 		log.Errorf("Get webhook event failed: %v", err)
-		s.handleError(w, err)
+		s.handleError(w, errors.NewInternalServerError(fmt.Sprintf("%v", err)))
 		return
 	}
 	// Respond immediately to GitHub to avoid timeout
@@ -50,21 +56,6 @@ func (s *Server) handleError(w http.ResponseWriter, err error) {
 	statusCode, errMsg := errors.HandleHTTPError(err)
 	http.Error(w, errMsg, statusCode)
 	log.WithFields(log.Fields{"error": err, "status": statusCode}).Error(errMsg)
-}
-
-func (s *Server) getWebhookEvent(req *http.Request) (any, error) {
-	payload, err := github.ValidatePayload(req, []byte(s.WebhookSecret))
-	if err != nil {
-		return nil, errors.NewInternalServerError(fmt.Sprintf("Validate payload failed: %v", err))
-	}
-
-	event, err := github.ParseWebHook(github.WebHookType(req), payload)
-	if err != nil {
-		return nil, errors.NewInternalServerError(fmt.Sprintf("Parse webhook failed: %v", err))
-	}
-	log.Infof("Received event type: %v\n", reflect.TypeOf(event))
-
-	return event, nil
 }
 
 func (s *Server) processWebhookEvents(event any) error {

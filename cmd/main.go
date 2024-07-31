@@ -5,7 +5,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/uib-ub/hono-kube-deploy-automation/config"
-	api "github.com/uib-ub/hono-kube-deploy-automation/internal/api"
+	apiserver "github.com/uib-ub/hono-kube-deploy-automation/internal/api"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
 )
 
 func init() {
@@ -27,7 +28,16 @@ func main() {
 		"WebhookSecret": cfg.WebhookSecret,
 	}).Info("Configuration loaded:")
 
-	serverInstance := api.NewServer(cfg.WebhookSecret)
+	// TODO: Get the GitHub client
+	githubClient := client.NewGithubClient(cfg.GitHubToken)
+
+	// TODO: Get kubernetes client
+
+	// TODO: Get docker client
+
+	serverInstance := apiserver.NewServer(githubClient, &apiserver.Options{
+		WebhookSecret: cfg.WebhookSecret,
+	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked
 	http.HandleFunc("/webhook", serverInstance.WebhookHandler)
 
