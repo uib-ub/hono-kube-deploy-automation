@@ -43,7 +43,6 @@ func (s *Server) WebhookHandler(w http.ResponseWriter, req *http.Request) {
 		} else {
 			log.Info("Webhook processed successfully!")
 		}
-
 	}(event) // pass event to the go routine
 }
 
@@ -74,10 +73,24 @@ func (s *Server) processWebhookEvents(event any) error {
 		log.Info("Received hook event")
 	case *github.IssueCommentEvent:
 		log.Info("Received issue comment event")
+		return s.handleIssueCommentEvent(e)
 	case *github.PullRequestEvent:
 		log.Info("Received pull request event")
+		return s.handlePullRequestEvent(e)
 	default:
 		return errors.NewInternalServerError(fmt.Sprintf("Unsupported event type: %v", reflect.TypeOf(e)))
 	}
+	return nil
+}
+
+func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error {
+	log.Infof("Issue Comment: action=%s, body=%s\n", event.GetAction(), event.GetComment().GetBody())
+
+	return nil
+}
+
+func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
+	log.Infof("Issue Comment: action=%s\n", event.GetAction())
+
 	return nil
 }
