@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/google/go-github/v63/github"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
@@ -17,6 +18,7 @@ type Options struct {
 	WebhookSecret      string
 	KubeResourcePath   string
 	WorkFlowFilePrefix string
+	LocalRepoSrcPath   string
 }
 type Server struct {
 	GithubClient *client.GithubClient
@@ -96,11 +98,84 @@ func (s *Server) processWebhookEvents(event any) error {
 func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error {
 	log.Infof("Issue Comment: action=%s, body=%s\n", event.GetAction(), event.GetComment().GetBody())
 
+	webhookEventData, err := s.extractWebhookEventData(event, "dev")
+	if err != nil {
+		return errors.NewInternalServerError(fmt.Sprintf("failed to extract webhook event data: %v", err))
+	}
+	log.Infof("Webhook Event Data: %+v\n", webhookEventData)
+
+	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
+	if event.GetIssue().IsPullRequest() && strings.Contains(event.GetComment().GetBody(), "deploy dev") {
+		//TODO: Get github repository to local source path
+		err := s.getGithubResource(webhookEventData.githubRepoFullName, webhookEventData.githubRepoBranch)
+		if err != nil {
+			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+		}
+
+		//TODO: Kustomization
+
+		//TODO: kubernetes cleanup/deveployment
+		if event.GetAction() == "deleted" {
+			// Handle the delete action: clean up the deployment/image
+			log.Info("PR comment 'deploy dev' deleted!")
+		} else {
+			// Handle the create/edit action: create/update the deployment
+			log.Info("PR comment 'deploy dev' found!")
+		}
+	}
+
 	return nil
 }
 
 func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 	log.Infof("Issue Comment: action=%s\n", event.GetAction())
 
+	return nil
+}
+
+func (s *Server) extractWebhookEventData(event any, namespace string) (*webhookEventData, error) {
+	ctx := context.Background()
+	webhookEventData := &webhookEventData{
+		ctx:                    ctx,
+		namespace:              namespace,
+		githubWorkFlowFileName: fmt.Sprintf("%s-%s.yaml", s.Options.WorkFlowFilePrefix, namespace),
+	}
+	switch event := event.(type) {
+	case *github.IssueCommentEvent:
+		// TODO: Debug
+		log.Debugf("rep org login: %s, org name: %s, owner name: %s, owner login: %s\n",
+			event.GetRepo().GetOrganization().GetLogin(),
+			event.GetRepo().GetOrganization().GetName(),
+			event.GetRepo().GetOwner().GetName(),
+			event.GetRepo().GetOwner().GetLogin(),
+		)
+		webhookEventData.githubLoginOwner = event.GetRepo().GetOwner().GetLogin()
+		webhookEventData.githubRepoFullName = event.GetRepo().GetFullName()
+		webhookEventData.githubRepoName = event.GetRepo().GetName()
+		webhookEventData.githubRepoIssueNumber = event.GetIssue().GetNumber()
+		// Get pull request
+		pr, err := s.GithubClient.GetPullRequest(ctx, webhookEventData.githubLoginOwner, webhookEventData.githubRepoName, webhookEventData.githubRepoIssueNumber)
+		if err != nil {
+			return nil, err
+		}
+		webhookEventData.githubRepoBranch = pr.GetHead().GetRef()
+		webhookEventData.imageTag = pr.GetHead().GetSHA()[:7] // the latest commit SHA in a issue comment event
+	case *github.PullRequestEvent:
+		webhookEventData.githubLoginOwner = event.GetRepo().GetOwner().GetLogin()
+		webhookEventData.githubRepoFullName = event.GetRepo().GetFullName()
+		webhookEventData.githubRepoBranch = event.GetPullRequest().GetBase().GetRef()
+		webhookEventData.imageTag = "latest"
+	default:
+		return nil, fmt.Errorf("unsupported event type: %v", reflect.TypeOf(event))
+	}
+
+	return webhookEventData, nil
+}
+
+func (s *Server) getGithubResource(githubRepoFullName, githubRepoBranch string) error {
+	err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoSrcPath, githubRepoFullName, githubRepoBranch)
+	if err != nil {
+		return err
+	}
 	return nil
 }

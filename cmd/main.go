@@ -14,6 +14,8 @@ func init() {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 	})
+
+	log.SetLevel(log.DebugLevel)
 }
 
 func main() {
@@ -56,6 +58,7 @@ func main() {
 		WebhookSecret:      cfg.WebhookSecret,
 		KubeResourcePath:   cfg.KubeResourcePath,
 		WorkFlowFilePrefix: cfg.WorkFlowFilePrefix,
+		LocalRepoSrcPath:   cfg.LocalRepoSrcPath,
 	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked
 	http.HandleFunc("/webhook", serverInstance.WebhookHandler)
