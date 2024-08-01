@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/uib-ub/hono-kube-deploy-automation/config"
-	apiserver "github.com/uib-ub/hono-kube-deploy-automation/internal/api"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/config"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/webhook"
 )
 
 func init() {
@@ -53,15 +53,15 @@ func main() {
 	if err != nil {
 		log.WithError(err).Fatal("Failed to initialize Docker client")
 	}
-
-	serverInstance := apiserver.NewServer(githubClient, kubeClient, dockerClient, &apiserver.Options{
+	server := webhook.NewServer(githubClient, kubeClient, dockerClient, &webhook.Options{
 		WebhookSecret:      cfg.WebhookSecret,
 		KubeResourcePath:   cfg.KubeResourcePath,
 		WorkFlowFilePrefix: cfg.WorkFlowFilePrefix,
 		LocalRepoSrcPath:   cfg.LocalRepoSrcPath,
 	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked
-	http.HandleFunc("/webhook", serverInstance.WebhookHandler)
+	//http.HandleFunc("/webhook", server.WebhookHandler)
+	http.HandleFunc("/webhook", webhook.WebhookHandler(server))
 
 	log.Info("Server instance created, listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
