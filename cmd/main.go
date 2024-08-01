@@ -46,9 +46,10 @@ func main() {
 
 	// Get docker client
 	dockerClient, err := client.NewDockerClient(&client.DockerOptions{
-		ContainerRegistry:         cfg.ContainerRegistry,
-		ContainerRegistryPassword: cfg.GitHubToken,
-		Dockerfile:                cfg.DockerFile,
+		ContainerRegistry: cfg.ContainerRegistry,
+		RegistryPassword:  cfg.GitHubToken,
+		Dockerfile:        cfg.DockerFile,
+		ImageNameSuffix:   cfg.ImageNameSuffix,
 	})
 	if err != nil {
 		log.WithError(err).Fatal("Failed to initialize Docker client")

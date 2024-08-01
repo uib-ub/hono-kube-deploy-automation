@@ -14,6 +14,7 @@ const (
 	defaultContainerRegistry  = "ghcr.io"
 	defaultKubeResourcePath   = "microk8s-hono-api"
 	defaultWorkFowFilePrefix  = "kube-secrets-deploy"
+	defaultImageNameSuffix    = "api"
 )
 
 type Config struct {
@@ -25,6 +26,7 @@ type Config struct {
 	ContainerRegistry  string
 	KubeResourcePath   string
 	WorkFlowFilePrefix string
+	ImageNameSuffix    string
 }
 
 func LoadConfig() (*Config, error) {
@@ -43,6 +45,7 @@ func LoadConfig() (*Config, error) {
 		ContainerRegistry:  getEnv("CONTAINER_REGISTRY", defaultContainerRegistry),
 		KubeResourcePath:   getEnv("KUBE_RESOURCE_PATH", defaultKubeResourcePath),
 		WorkFlowFilePrefix: getEnv("WORKFLOW_FILE_PREFIX", defaultWorkFowFilePrefix),
+		ImageNameSuffix:    getEnv("IMAGE_NAME_SUFFIX", defaultImageNameSuffix),
 	}
 
 	if config.WebhookSecret == "" || config.GitHubToken == "" {

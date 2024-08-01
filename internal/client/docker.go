@@ -21,6 +21,7 @@ type DockerOptions struct {
 	ContainerRegistry string
 	RegistryPassword  string
 	Dockerfile        string
+	ImageNameSuffix   string
 }
 
 type DockerClient struct {
@@ -38,7 +39,8 @@ func NewDockerClient(dockerOptions *DockerOptions) (*DockerClient, error) {
 
 func (d *DockerClient) ImageBuild(registryOwner, registryFullName, imageTag, localRepoSrcPath string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	imageNameWithTag := fmt.Sprintf("%s/%s/%s/%s", containerRegistry, registryOwner, registryFullName, imageTag)
+	imageNameSuffix := d.DockerOptions.ImageNameSuffix
+	imageNameWithTag := fmt.Sprintf("%s/%s/%s-%s:%s", containerRegistry, registryOwner, registryFullName, imageNameSuffix, imageTag)
 
 	tar, err := archive.TarWithOptions(localRepoSrcPath, &archive.TarOptions{})
 	if err != nil {
@@ -65,7 +67,8 @@ func (d *DockerClient) ImageBuild(registryOwner, registryFullName, imageTag, loc
 
 func (d *DockerClient) ImagePush(registryOwner, registryFullName, imageTag string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	imageNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, registryFullName, imageTag)
+	imageNameSuffix := d.DockerOptions.ImageNameSuffix
+	imageNameWithTag := fmt.Sprintf("%s/%s/%s-%s:%s", containerRegistry, registryOwner, registryFullName, imageNameSuffix, imageTag)
 	registryPassword := d.DockerOptions.RegistryPassword
 
 	authConfig := registry.AuthConfig{
@@ -97,7 +100,8 @@ func (d *DockerClient) ImagePush(registryOwner, registryFullName, imageTag strin
 
 func (d *DockerClient) ImageDelete(registryOwner, registryFullName, imageTag string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	imageNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, registryFullName, imageTag)
+	imageNameSuffix := d.DockerOptions.ImageNameSuffix
+	imageNameWithTag := fmt.Sprintf("%s/%s/%s-%s:%s", containerRegistry, registryOwner, registryFullName, imageNameSuffix, imageTag)
 
 	removeOptions := image.RemoveOptions{
 		Force:         true,
