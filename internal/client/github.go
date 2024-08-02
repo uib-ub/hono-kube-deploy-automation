@@ -82,7 +82,7 @@ func (g *GithubClient) DownloadGithubRepository(localRepoSrcPath, repoFullName, 
 		branchName = "main" // Default to master if no branch is specified
 	}
 
-	log.Infof("Docker app Github repository full name: %s", repoFullName)
+	log.Infof("Github repository full name: %s", repoFullName)
 	githubRepoUrl := fmt.Sprintf("https://github.com/%s.git", repoFullName)
 
 	// Check if the local source directory exists

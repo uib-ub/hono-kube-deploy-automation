@@ -41,7 +41,7 @@ func LoadConfig() (*Config, error) {
 		WebhookSecret:      getEnv("WEBHOOK_SECRET", ""),
 		KubeConfigFile:     getEnv("KUBECONFIG", ""),
 		LocalRepoSrcPath:   localRepoSrcPath,
-		DockerFile:         getEnv("DOCKER_FILE", defaultDockerFile),
+		DockerFile:         getEnv("DOCKERFILE", defaultDockerFile),
 		ContainerRegistry:  getEnv("CONTAINER_REGISTRY", defaultContainerRegistry),
 		KubeResourcePath:   getEnv("KUBE_RESOURCE_PATH", defaultKubeResourcePath),
 		WorkFlowFilePrefix: getEnv("WORKFLOW_FILE_PREFIX", defaultWorkFowFilePrefix),
