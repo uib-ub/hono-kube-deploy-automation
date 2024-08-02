@@ -1,11 +1,23 @@
 package client
 
 import (
+	"context"
 	"fmt"
+	"reflect"
+	"time"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type KubeClient struct {
@@ -31,4 +43,157 @@ func buildConfig(kubeConfigFile string) (*rest.Config, error) {
 	}
 	// outside kubernetes cluster
 	return clientcmd.BuildConfigFromFlags("", kubeConfigFile)
+}
+
+func (k *KubeClient) Deploy(ctx context.Context, resource *[]byte, ns string) (map[string]string, int32, error) {
+	// Create a sub-context with a specific timeout to prevent
+	// hanging indefinitely, which can lead to deadlocks or resource leaks
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
+
+	obj, err := k.decodeResource(resource)
+	if err != nil {
+		return nil, 0, err
+	}
+	log.Infof("Deploy resource type: %v", reflect.TypeOf(obj))
+
+	_, err = k.getResource(ctx, ns, obj)
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, 0, fmt.Errorf("failed to get Kubernetes resource: %w", err)
+	}
+
+	if errors.IsNotFound(err) {
+		// create deployment of the resource
+		return k.handleDeployResource(ctx, ns, obj, true)
+	}
+	// update deployment of the resource
+	return k.handleDeployResource(ctx, ns, obj, false)
+}
+
+func (k *KubeClient) Delete(ctx context.Context, resource *[]byte, ns string) error {
+	// Create a sub-context with a specific timeout to prevent
+	// hanging indefinitely, which can lead to deadlocks or resource leaks
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
+
+	obj, err := k.decodeResource(resource)
+	if err != nil {
+		return err
+	}
+	log.Infof("Delete resource type: %v", reflect.TypeOf(obj))
+	_, err = k.getResource(ctx, ns, obj)
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to get Kubernetes resource: %w", err)
+	}
+	if errors.IsNotFound(err) {
+		log.Infof("Kubernetes resource not found, skip deletion")
+		return nil
+	}
+
+	return k.handleDeleteResource(ctx, ns, obj)
+}
+
+func (k *KubeClient) decodeResource(resource *[]byte) (metav1.Object, error) {
+	// Decode the resource
+	obj, gvk, err := scheme.Codecs.UniversalDeserializer().Decode(*resource, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode resource: %w", err)
+	}
+	log.Debugf("Decoded resource type: %v, kind: %v", reflect.TypeOf(obj), gvk.Kind)
+	// Cast object to metav1.Object
+	objMeta, ok := obj.(metav1.Object)
+	if !ok {
+		return nil, fmt.Errorf("decoded resource object is not a Kubernetes API object")
+	}
+	log.Infof("Decoded Kubernetes API object type: %v", reflect.TypeOf(objMeta))
+
+	return objMeta, nil
+}
+
+func (k *KubeClient) getResource(ctx context.Context, ns string, obj metav1.Object) (metav1.Object, error) {
+	switch obj := obj.(type) {
+	case *appsv1.Deployment:
+		return k.AppsV1().Deployments(ns).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	case *corev1.Namespace:
+		return k.CoreV1().Namespaces().Get(ctx, obj.GetName(), metav1.GetOptions{})
+	case *corev1.ConfigMap:
+		return k.CoreV1().ConfigMaps(ns).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	case *corev1.Service:
+		return k.CoreV1().Services(ns).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	case *networkingv1.Ingress:
+		return k.NetworkingV1().Ingresses(ns).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	default:
+		return nil, fmt.Errorf("unsupported Kubernetes resource kind: %v", reflect.TypeOf(obj))
+	}
+}
+
+func (k *KubeClient) handleDeployResource(ctx context.Context, ns string, obj metav1.Object, create bool) (map[string]string, int32, error) {
+	switch obj := obj.(type) {
+	case *appsv1.Deployment:
+		return handleDeployResourceOperation(create, obj, ctx, k.AppsV1().Deployments(ns).Create, k.AppsV1().Deployments(ns).Update)
+	case *corev1.Namespace:
+		return handleDeployResourceOperation(create, obj, ctx, k.CoreV1().Namespaces().Create, k.CoreV1().Namespaces().Update)
+	case *corev1.ConfigMap:
+		return handleDeployResourceOperation(create, obj, ctx, k.CoreV1().ConfigMaps(ns).Create, k.CoreV1().ConfigMaps(ns).Update)
+	case *corev1.Service:
+		return handleDeployResourceOperation(create, obj, ctx, k.CoreV1().Services(ns).Create, k.CoreV1().Services(ns).Update)
+	case *networkingv1.Ingress:
+		return handleDeployResourceOperation(create, obj, ctx, k.NetworkingV1().Ingresses(ns).Create, k.NetworkingV1().Ingresses(ns).Update)
+	default:
+		return nil, 0, fmt.Errorf("unsupported Kubernetes resource kind: %v", reflect.TypeOf(obj))
+	}
+}
+
+func (k *KubeClient) handleDeleteResource(ctx context.Context, ns string, obj metav1.Object) error {
+	switch obj := obj.(type) {
+	case *appsv1.Deployment:
+		return k.AppsV1().Deployments(ns).Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+	case *corev1.Namespace:
+		return k.CoreV1().Namespaces().Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+	case *corev1.ConfigMap:
+		return k.CoreV1().ConfigMaps(ns).Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+	case *corev1.Service:
+		return k.CoreV1().Services(ns).Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+	case *networkingv1.Ingress:
+		return k.NetworkingV1().Ingresses(ns).Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+	default:
+		return fmt.Errorf("unsupported Kubernetes resource kind: %v", reflect.TypeOf(obj))
+	}
+}
+
+func handleDeployResourceOperation[T *appsv1.Deployment | *corev1.Namespace | *corev1.ConfigMap | *corev1.Service | *networkingv1.Ingress](
+	create bool, obj T, ctx context.Context,
+	createFunc func(context.Context, T, metav1.CreateOptions) (T, error),
+	updateFunc func(context.Context, T, metav1.UpdateOptions) (T, error)) (map[string]string, int32, error) {
+
+	var err error
+	if create {
+		log.Infof("Create Kubernetes resource type: %v ...", reflect.TypeOf(obj))
+		_, err = createFunc(ctx, obj, metav1.CreateOptions{})
+	} else {
+		log.Infof("Update Kubernetes resource type: %v ...", reflect.TypeOf(obj))
+		_, err = updateFunc(ctx, obj, metav1.UpdateOptions{})
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to handle Kubernetes resource type %v: %w", reflect.TypeOf(obj), err)
+	}
+	return getLabels(obj), getReplicas(obj), nil
+}
+
+func getLabels(obj any) map[string]string {
+	switch obj := obj.(type) {
+	case metav1.Object:
+		return obj.GetLabels()
+	}
+	return nil
+}
+
+func getReplicas(obj any) int32 {
+	switch obj := obj.(type) {
+	case *appsv1.Deployment:
+		if obj.Spec.Replicas != nil {
+			return *obj.Spec.Replicas
+		}
+	}
+	return 0
 }
