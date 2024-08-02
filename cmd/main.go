@@ -28,7 +28,7 @@ func main() {
 	log.WithFields(log.Fields{
 		"GitHubToken":   cfg.GitHubToken,
 		"WebhookSecret": cfg.WebhookSecret,
-		"LocalRepoPath": cfg.LocalRepoPath,
+		"LocalRepoDir":  cfg.LocalRepoDir,
 		"DockerFile":    cfg.DockerFile,
 		"Registry":      cfg.Registry,
 		"KubeResSrc":    cfg.KubeResSrc,
@@ -56,9 +56,9 @@ func main() {
 	}
 	server := webhook.NewServer(githubClient, kubeClient, dockerClient, &webhook.Options{
 		WebhookSecret: cfg.WebhookSecret,
-		KubeResPath:   cfg.KubeResSrc,
+		KubeResDir:    cfg.KubeResSrc,
 		WFPrefix:      cfg.WFPrefix,
-		LocalRepoPath: cfg.LocalRepoPath,
+		LocalRepoDir:  cfg.LocalRepoDir,
 		ImageSuffix:   cfg.ImageSuffix,
 	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked

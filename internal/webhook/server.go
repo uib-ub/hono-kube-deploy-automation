@@ -16,9 +16,9 @@ import (
 
 type Options struct {
 	WebhookSecret string // Webhook Secret
-	KubeResPath   string // Kube Resource Path
+	KubeResDir    string // Kube Resource Path
 	WFPrefix      string // Workflow File Prefix
-	LocalRepoPath string // Local Repository Source Path
+	LocalRepoDir  string // Local Repository Source Path
 	ImageSuffix   string // Image Name Suffix
 }
 type Server struct {
@@ -159,8 +159,8 @@ func (s *Server) extractWebhookEventData(event any, namespace string) (*eventDat
 	return eventData, nil
 }
 
-func (s *Server) getGithubResource(githubRepoFullName, githubRepoBranch string) error {
-	err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoPath, githubRepoFullName, githubRepoBranch)
+func (s *Server) getGithubResource(ghRepoFullName, ghBranch string) error {
+	err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoDir, ghRepoFullName, ghBranch)
 	if err != nil {
 		return err
 	}
@@ -168,8 +168,8 @@ func (s *Server) getGithubResource(githubRepoFullName, githubRepoBranch string) 
 }
 
 func (s *Server) handleKustomization(ns string) (*[]string, error) {
-	deploykubeResDir := filepath.Join(s.Options.LocalRepoPath, s.Options.KubeResPath, ns)
-	kustomizer := client.NewKustomizer(deploykubeResDir)
+	deploykubeResPath := filepath.Join(s.Options.LocalRepoDir, s.Options.KubeResDir, ns)
+	kustomizer := client.NewKustomizer(deploykubeResPath)
 	kubeResources, err := kustomizer.Build()
 	if err != nil {
 		return nil, err
@@ -226,22 +226,22 @@ func (s *Server) issueCommentEventCleanup(eventData *eventData, kubeResources *[
 	return nil
 }
 
-func (s *Server) handleContainerization(action, githubLoginOwner, imageName, imageTag string) error {
+func (s *Server) handleContainerization(action, ghLoginOwner, imageName, imageTag string) error {
 	switch action {
 	case "delete":
 		// Cleanup local container image
-		err := s.DockerClient.ImageDelete(githubLoginOwner, imageName, imageTag)
+		err := s.DockerClient.ImageDelete(ghLoginOwner, imageName, imageTag)
 		if err != nil {
 			return err
 		}
 	case "deploy":
 		// Build the container image
-		err := s.DockerClient.ImageBuild(githubLoginOwner, imageName, imageTag, s.Options.LocalRepoPath)
+		err := s.DockerClient.ImageBuild(ghLoginOwner, imageName, imageTag, s.Options.LocalRepoDir)
 		if err != nil {
 			return err
 		}
 		// Push the container image
-		err = s.DockerClient.ImagePush(githubLoginOwner, imageName, imageTag)
+		err = s.DockerClient.ImagePush(ghLoginOwner, imageName, imageTag)
 		if err != nil {
 			return err
 		}
@@ -251,16 +251,16 @@ func (s *Server) handleContainerization(action, githubLoginOwner, imageName, ima
 
 func (s *Server) cleanupLocalRepository() error {
 	// Clean up local repository
-	if err := s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoPath); err != nil {
+	if err := s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoDir); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Server) cleanupImageOnGithub(ctx context.Context, githubLoginOwner, imageName, imageTag string) error {
+func (s *Server) cleanupImageOnGithub(ctx context.Context, ghLoginOwner, imageName, imageTag string) error {
 	packageType := "container"
 	log.Infof("Deleting the package image %s:%s on Github...", imageName, imageTag)
-	err := s.GithubClient.DeletePackageImage(ctx, githubLoginOwner, packageType, imageName, imageTag)
+	err := s.GithubClient.DeletePackageImage(ctx, ghLoginOwner, packageType, imageName, imageTag)
 	if err != nil {
 		return err
 	}

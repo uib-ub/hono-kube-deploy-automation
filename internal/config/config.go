@@ -21,7 +21,7 @@ type Config struct {
 	GitHubToken   string
 	WebhookSecret string
 	KubeConfig    string // Kubernetes config file
-	LocalRepoPath string // local repository path
+	LocalRepoDir  string // local repository path
 	DockerFile    string // DockerFile
 	Registry      string // container registry
 	KubeResSrc    string // Kubernetes resource source folder
@@ -31,7 +31,7 @@ type Config struct {
 
 func LoadConfig() (*Config, error) {
 
-	localRepoPath, err := getLocalRepoPath(getEnv("LOCAL_REPO_SRC", defaultLocalRepoSrc))
+	localRepoDir, err := getLocalRepoPath(getEnv("LOCAL_REPO_SRC", defaultLocalRepoSrc))
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func LoadConfig() (*Config, error) {
 		GitHubToken:   getEnv("GITHUB_TOKEN", ""),
 		WebhookSecret: getEnv("WEBHOOK_SECRET", ""),
 		KubeConfig:    getEnv("KUBECONFIG", ""),
-		LocalRepoPath: localRepoPath,
+		LocalRepoDir:  localRepoDir,
 		DockerFile:    getEnv("DOCKERFILE", defaultDockerFile),
 		Registry:      getEnv("CONTAINER_REGISTRY", defaultRegistry),
 		KubeResSrc:    getEnv("KUBE_RESOURCE", defaultKubeResSrc),
