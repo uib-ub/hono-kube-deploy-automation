@@ -188,22 +188,29 @@ func (s *Server) issueCommentEventDeploy(eventData *eventData, kubeResources *[]
 	log.Info("Build and push the container image finished!")
 	// Deploy to kubernetes
 	log.Infof("Deploy the resources on Kubernetes for %s enviroment...", eventData.namespace)
-	// TODO: Handle kubernetes deployment
+	// Handle kubernetes deployment
+	err = s.handleKubeResourcesDeploy(eventData, kubeResources)
+	if err != nil {
+		return err
+	}
 
 	log.Infof("Deployment completed for %s enviroment!", eventData.namespace)
 	return nil
 }
 
 func (s *Server) issueCommentEventCleanup(eventData *eventData, kubeResources *[]string) error {
-	// cleanup the deployment on kubernetes by handler
+	// Clean up the deployment on kubernetes by handler
 	log.Infof("Delete the deployment on Kubernetes for %s enviroment...", eventData.namespace)
-	// TODO: clean up kubernetes resources
-
+	// Clean up kubernetes resources
+	err := s.handleKubeResourecesCleanup(eventData, kubeResources)
+	if err != nil {
+		return err
+	}
 	log.Infof("Deleting the deployment on Kubernetes for %s enviroment is finished!", eventData.namespace)
 
 	log.Infof("Delete the container image and repository for %s enviroment...", eventData.namespace)
 	// Clean up local container image
-	err := s.handleContainerization("delete", eventData.githubLoginOwner, eventData.imageName, eventData.imageTag)
+	err = s.handleContainerization("delete", eventData.githubLoginOwner, eventData.imageName, eventData.imageTag)
 	if err != nil {
 		return err
 	}
@@ -258,5 +265,52 @@ func (s *Server) cleanupImageOnGithub(ctx context.Context, githubLoginOwner, ima
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *Server) handleKubeResourcesDeploy(eventData *eventData, kubeResources *[]string) error {
+	// Deploy namespace
+	for _, res := range *kubeResources {
+		if strings.Contains(res, "Namespace") {
+			log.Debugf("found Namespace file:\n%s\n", res)
+			_, _, err := s.KubeClient.Deploy(eventData.ctx, []byte(res), eventData.namespace)
+			if err != nil {
+				return fmt.Errorf("failed to deploy namespace: %v", err)
+			}
+			break
+		}
+	}
+	// TODO: trigger github workflow to deploy kubernetes secrets
+
+	// Deploy resources
+	for _, res := range *kubeResources {
+		if strings.Contains(res, "Namespace") {
+			continue
+		}
+		if strings.Contains(res, "Kind: Deployment") && eventData.imageTag != "latest" {
+			res = strings.Replace(res, "latest", eventData.imageTag, -1)
+		}
+		log.Debugf("Deploying resource:\n%s\n", res)
+		_, _, err := s.KubeClient.Deploy(eventData.ctx, []byte(res), eventData.namespace)
+		if err != nil {
+			return err
+		}
+	}
+	log.Info("Deployment completed!")
+	return nil
+}
+
+func (s *Server) handleKubeResourecesCleanup(eventData *eventData, kubeResources *[]string) error {
+	for _, res := range *kubeResources {
+		if strings.Contains(res, "kind: Deployment") {
+			res = strings.Replace(res, "latest", eventData.imageTag, -1)
+		}
+		log.Debugf("Delete resource:\n%s\n", res)
+		err := s.KubeClient.Delete(eventData.ctx, []byte(res), eventData.namespace)
+		if err != nil {
+			return err
+		}
+	}
+	log.Info("Cleanup completed!")
 	return nil
 }

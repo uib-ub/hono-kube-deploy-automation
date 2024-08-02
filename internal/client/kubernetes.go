@@ -45,7 +45,7 @@ func buildConfig(kubeConfigFile string) (*rest.Config, error) {
 	return clientcmd.BuildConfigFromFlags("", kubeConfigFile)
 }
 
-func (k *KubeClient) Deploy(ctx context.Context, resource *[]byte, ns string) (map[string]string, int32, error) {
+func (k *KubeClient) Deploy(ctx context.Context, resource []byte, ns string) (map[string]string, int32, error) {
 	// Create a sub-context with a specific timeout to prevent
 	// hanging indefinitely, which can lead to deadlocks or resource leaks
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
@@ -70,7 +70,7 @@ func (k *KubeClient) Deploy(ctx context.Context, resource *[]byte, ns string) (m
 	return k.handleDeployResource(ctx, ns, obj, false)
 }
 
-func (k *KubeClient) Delete(ctx context.Context, resource *[]byte, ns string) error {
+func (k *KubeClient) Delete(ctx context.Context, resource []byte, ns string) error {
 	// Create a sub-context with a specific timeout to prevent
 	// hanging indefinitely, which can lead to deadlocks or resource leaks
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
@@ -93,9 +93,9 @@ func (k *KubeClient) Delete(ctx context.Context, resource *[]byte, ns string) er
 	return k.handleDeleteResource(ctx, ns, obj)
 }
 
-func (k *KubeClient) decodeResource(resource *[]byte) (metav1.Object, error) {
+func (k *KubeClient) decodeResource(resource []byte) (metav1.Object, error) {
 	// Decode the resource
-	obj, gvk, err := scheme.Codecs.UniversalDeserializer().Decode(*resource, nil, nil)
+	obj, gvk, err := scheme.Codecs.UniversalDeserializer().Decode(resource, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode resource: %w", err)
 	}
