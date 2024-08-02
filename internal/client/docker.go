@@ -21,7 +21,7 @@ type DockerOptions struct {
 	ContainerRegistry string
 	RegistryPassword  string
 	Dockerfile        string
-	ImageNameSuffix   string
+	// ImageNameSuffix   string
 }
 
 type DockerClient struct {
@@ -37,10 +37,9 @@ func NewDockerClient(dockerOptions *DockerOptions) (*DockerClient, error) {
 	return &DockerClient{client, dockerOptions}, nil
 }
 
-func (d *DockerClient) ImageBuild(registryOwner, registryFullName, imageTag, localRepoSrcPath string) error {
+func (d *DockerClient) ImageBuild(registryOwner, imageName, imageTag, localRepoSrcPath string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	imageNameSuffix := d.DockerOptions.ImageNameSuffix
-	imageNameWithTag := fmt.Sprintf("%s/%s/%s-%s:%s", containerRegistry, registryOwner, registryFullName, imageNameSuffix, imageTag)
+	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
 
 	tar, err := archive.TarWithOptions(localRepoSrcPath, &archive.TarOptions{})
 	if err != nil {
@@ -48,11 +47,11 @@ func (d *DockerClient) ImageBuild(registryOwner, registryFullName, imageTag, loc
 	}
 	buildOptions := types.ImageBuildOptions{
 		Dockerfile:  d.DockerOptions.Dockerfile,
-		Tags:        []string{imageNameWithTag},
+		Tags:        []string{registryNameWithTag},
 		Remove:      true,
 		ForceRemove: true,
 	}
-	log.Infof("Building image: %s", imageNameWithTag)
+	log.Infof("Building image: %s", registryNameWithTag)
 	buildRes, err := d.Client.ImageBuild(context.Background(), tar, buildOptions)
 	if err != nil {
 		return fmt.Errorf("failed to build image: %w", err)
@@ -61,14 +60,13 @@ func (d *DockerClient) ImageBuild(registryOwner, registryFullName, imageTag, loc
 
 	io.Copy(os.Stdout, buildRes.Body)
 
-	log.Infof("Image %s is built locally", imageNameWithTag)
+	log.Infof("Image %s is built locally", registryNameWithTag)
 	return nil
 }
 
-func (d *DockerClient) ImagePush(registryOwner, registryFullName, imageTag string) error {
+func (d *DockerClient) ImagePush(registryOwner, imageName, imageTag string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	imageNameSuffix := d.DockerOptions.ImageNameSuffix
-	imageNameWithTag := fmt.Sprintf("%s/%s/%s-%s:%s", containerRegistry, registryOwner, registryFullName, imageNameSuffix, imageTag)
+	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
 	registryPassword := d.DockerOptions.RegistryPassword
 
 	authConfig := registry.AuthConfig{
@@ -85,8 +83,8 @@ func (d *DockerClient) ImagePush(registryOwner, registryFullName, imageTag strin
 		RegistryAuth: authBase64,
 	}
 
-	log.Infof("Pushing image: %s", imageNameWithTag)
-	pushRes, err := d.Client.ImagePush(context.Background(), imageNameWithTag, pushOptions)
+	log.Infof("Pushing image: %s", registryNameWithTag)
+	pushRes, err := d.Client.ImagePush(context.Background(), registryNameWithTag, pushOptions)
 	if err != nil {
 		return fmt.Errorf("failed to push image: %w", err)
 	}
@@ -94,26 +92,25 @@ func (d *DockerClient) ImagePush(registryOwner, registryFullName, imageTag strin
 
 	io.Copy(os.Stdout, pushRes)
 
-	log.Infof("Image %s is pushed to the container registry", imageNameWithTag)
+	log.Infof("Image %s is pushed to the container registry", registryNameWithTag)
 	return nil
 }
 
-func (d *DockerClient) ImageDelete(registryOwner, registryFullName, imageTag string) error {
+func (d *DockerClient) ImageDelete(registryOwner, imageName, imageTag string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	imageNameSuffix := d.DockerOptions.ImageNameSuffix
-	imageNameWithTag := fmt.Sprintf("%s/%s/%s-%s:%s", containerRegistry, registryOwner, registryFullName, imageNameSuffix, imageTag)
+	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
 
 	removeOptions := image.RemoveOptions{
 		Force:         true,
 		PruneChildren: true,
 	}
 
-	log.Infof("Deleting image: %s", imageNameWithTag)
-	_, err := d.Client.ImageRemove(context.Background(), imageNameWithTag, removeOptions)
+	log.Infof("Deleting image: %s", registryNameWithTag)
+	_, err := d.Client.ImageRemove(context.Background(), registryNameWithTag, removeOptions)
 	if err != nil {
 		return fmt.Errorf("failed to delete image: %w", err)
 	}
 
-	log.Infof("Image %s is deleted locally", imageNameWithTag)
+	log.Infof("Image %s is deleted locally", registryNameWithTag)
 	return nil
 }
