@@ -9,43 +9,43 @@ import (
 )
 
 const (
-	defaultLocalRepoSrcFolder = "app"
-	defaultDockerFile         = "Dockerfile"
-	defaultContainerRegistry  = "ghcr.io"
-	defaultKubeResourcePath   = "microk8s-hono-api"
-	defaultWorkFowFilePrefix  = "kube-secrets-deploy"
-	defaultImageNameSuffix    = "api"
+	defaultLocalRepoSrc = "app"                 // default local repository source folder
+	defaultDockerFile   = "Dockerfile"          // default Dockerfile
+	defaultRegistry     = "ghcr.io"             // default container registry
+	defaultKubeResSrc   = "microk8s-hono-api"   // default Kubernetes resource source folder
+	defaultWFPrefix     = "kube-secrets-deploy" // default Github workflow file name prefix
+	defaultImageSuffix  = "api"                 // default Docker Image name suffix
 )
 
 type Config struct {
-	GitHubToken        string
-	WebhookSecret      string
-	KubeConfigFile     string
-	LocalRepoSrcPath   string
-	DockerFile         string
-	ContainerRegistry  string
-	KubeResourcePath   string
-	WorkFlowFilePrefix string
-	ImageNameSuffix    string
+	GitHubToken   string
+	WebhookSecret string
+	KubeConfig    string // Kubernetes config file
+	LocalRepoPath string // local repository path
+	DockerFile    string // DockerFile
+	Registry      string // container registry
+	KubeResSrc    string // Kubernetes resource source folder
+	WFPrefix      string // Github workflow file name prefix
+	ImageSuffix   string // Docker Image name suffix
 }
 
 func LoadConfig() (*Config, error) {
 
-	localRepoSrcPath, err := getLocalRepoSrcPath(getEnv("LOCAL_REPO_SRC", defaultLocalRepoSrcFolder))
+	localRepoPath, err := getLocalRepoPath(getEnv("LOCAL_REPO_SRC", defaultLocalRepoSrc))
 	if err != nil {
 		return nil, err
 	}
 
 	config := &Config{
-		GitHubToken:        getEnv("GITHUB_TOKEN", ""),
-		WebhookSecret:      getEnv("WEBHOOK_SECRET", ""),
-		KubeConfigFile:     getEnv("KUBECONFIG", ""),
-		LocalRepoSrcPath:   localRepoSrcPath,
-		DockerFile:         getEnv("DOCKERFILE", defaultDockerFile),
-		ContainerRegistry:  getEnv("CONTAINER_REGISTRY", defaultContainerRegistry),
-		KubeResourcePath:   getEnv("KUBE_RESOURCE_PATH", defaultKubeResourcePath),
-		WorkFlowFilePrefix: getEnv("WORKFLOW_FILE_PREFIX", defaultWorkFowFilePrefix),
-		ImageNameSuffix:    getEnv("IMAGE_NAME_SUFFIX", defaultImageNameSuffix),
+		GitHubToken:   getEnv("GITHUB_TOKEN", ""),
+		WebhookSecret: getEnv("WEBHOOK_SECRET", ""),
+		KubeConfig:    getEnv("KUBECONFIG", ""),
+		LocalRepoPath: localRepoPath,
+		DockerFile:    getEnv("DOCKERFILE", defaultDockerFile),
+		Registry:      getEnv("CONTAINER_REGISTRY", defaultRegistry),
+		KubeResSrc:    getEnv("KUBE_RESOURCE", defaultKubeResSrc),
+		WFPrefix:      getEnv("WORKFLOW_PREFIX", defaultWFPrefix),
+		ImageSuffix:   getEnv("IMAGE_SUFFIX", defaultImageSuffix),
 	}
 
 	if config.WebhookSecret == "" || config.GitHubToken == "" {
@@ -63,7 +63,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getLocalRepoSrcPath(localRepoSrcFolder string) (string, error) {
+func getLocalRepoPath(localRepoSrcFolder string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)

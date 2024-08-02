@@ -19,19 +19,19 @@ type GithubClient struct {
 	*github.Client // Embedding the github.Client struct
 }
 
-func NewGithubClient(githubAccessToken string) *GithubClient {
+func NewGithubClient(githubToken string) *GithubClient {
 	httpClient := &http.Client{
 		Timeout: time.Second * 30,
 	}
 	client := github.NewClient(httpClient)
-	if githubAccessToken != "" {
-		client = client.WithAuthToken(githubAccessToken)
+	if githubToken != "" {
+		client = client.WithAuthToken(githubToken)
 	}
 	return &GithubClient{Client: client}
 }
 
-func (g *GithubClient) GetWebhookEvent(req *http.Request, webhookSecretKey string) (any, error) {
-	payload, err := github.ValidatePayload(req, []byte(webhookSecretKey))
+func (g *GithubClient) GetWebhookEvent(req *http.Request, WebhookSecret string) (any, error) {
+	payload, err := github.ValidatePayload(req, []byte(WebhookSecret))
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate payload: %w", err)
 	}
@@ -45,8 +45,8 @@ func (g *GithubClient) GetWebhookEvent(req *http.Request, webhookSecretKey strin
 	return event, nil
 }
 
-func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, issueNumber int) (*github.PullRequest, error) {
-	pr, _, err := g.PullRequests.Get(ctx, owner, repo, issueNumber)
+func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, issueNum int) (*github.PullRequest, error) {
+	pr, _, err := g.PullRequests.Get(ctx, owner, repo, issueNum)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pull request: %w", err)
 	}
@@ -77,7 +77,7 @@ func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageTyp
 	return fmt.Errorf("package %s with version tag %s not found", encodedPackageName, tag)
 }
 
-func (g *GithubClient) DownloadGithubRepository(localRepoSrcPath, repoFullName, branchName string) error {
+func (g *GithubClient) DownloadGithubRepository(localRepoPath, repoFullName, branchName string) error {
 	if branchName == "" {
 		branchName = "main" // Default to master if no branch is specified
 	}
@@ -86,23 +86,23 @@ func (g *GithubClient) DownloadGithubRepository(localRepoSrcPath, repoFullName, 
 	githubRepoUrl := fmt.Sprintf("https://github.com/%s.git", repoFullName)
 
 	// Check if the local source directory exists
-	if _, err := os.Stat(localRepoSrcPath); os.IsNotExist(err) {
+	if _, err := os.Stat(localRepoPath); os.IsNotExist(err) {
 		// Create the directory if it doesn't exist
-		if err := os.MkdirAll(localRepoSrcPath, 0755); err != nil {
+		if err := os.MkdirAll(localRepoPath, 0755); err != nil {
 			return fmt.Errorf("failed to create local source directory: %w", err)
 		}
 	}
 
-	if _, err := os.Stat(filepath.Join(localRepoSrcPath, ".git")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(localRepoPath, ".git")); os.IsNotExist(err) {
 		// clone the repository .git doesn't exist
-		log.Infof("Cloning repository %s into %s", githubRepoUrl, localRepoSrcPath)
-		if err := g.runCmd("git", "clone", "-b", branchName, githubRepoUrl, localRepoSrcPath); err != nil {
+		log.Infof("Cloning repository %s into %s", githubRepoUrl, localRepoPath)
+		if err := g.runCmd("git", "clone", "-b", branchName, githubRepoUrl, localRepoPath); err != nil {
 			return fmt.Errorf("failed to clone git repository to local source path: %w", err)
 		}
 	} else {
 		// If .git exists, pull the latest changes
-		log.Infof("Pull repository %s to %s", githubRepoUrl, localRepoSrcPath)
-		if err := g.runCmd("git", "-C", localRepoSrcPath, "pull"); err != nil {
+		log.Infof("Pull repository %s to %s", githubRepoUrl, localRepoPath)
+		if err := g.runCmd("git", "-C", localRepoPath, "pull"); err != nil {
 			return fmt.Errorf("failed to pull git repository updates: %w", err)
 		}
 	}
@@ -117,13 +117,13 @@ func (g *GithubClient) runCmd(command string, args ...string) error {
 	return nil
 }
 
-func (g *GithubClient) DeleteLocalRepository(localRepoSrcPath string) error {
+func (g *GithubClient) DeleteLocalRepository(localRepoPath string) error {
 	// Remove the existing local source directory if it exists
-	if _, err := os.Stat(localRepoSrcPath); !os.IsNotExist(err) {
-		if err := os.RemoveAll(localRepoSrcPath); err != nil {
+	if _, err := os.Stat(localRepoPath); !os.IsNotExist(err) {
+		if err := os.RemoveAll(localRepoPath); err != nil {
 			return fmt.Errorf("failed to delete local repository directory: %w", err)
 		}
 	}
-	log.Infof("Local repository directory %s is removed", localRepoSrcPath)
+	log.Infof("Local repository directory %s is removed", localRepoPath)
 	return nil
 }

@@ -24,8 +24,8 @@ type KubeClient struct {
 	*kubernetes.Clientset
 }
 
-func NewKubernetesClient(kubeConfigFile string) (*KubeClient, error) {
-	config, err := buildConfig(kubeConfigFile)
+func NewKubernetesClient(kubeConfig string) (*KubeClient, error) {
+	config, err := buildConfig(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build kubernetes config: %w", err)
 	}
@@ -36,13 +36,13 @@ func NewKubernetesClient(kubeConfigFile string) (*KubeClient, error) {
 	return &KubeClient{client}, nil
 }
 
-func buildConfig(kubeConfigFile string) (*rest.Config, error) {
-	if kubeConfigFile == "" {
+func buildConfig(kubeConfig string) (*rest.Config, error) {
+	if kubeConfig == "" {
 		// inside kubernetes cluster
 		return rest.InClusterConfig()
 	}
 	// outside kubernetes cluster
-	return clientcmd.BuildConfigFromFlags("", kubeConfigFile)
+	return clientcmd.BuildConfigFromFlags("", kubeConfig)
 }
 
 func (k *KubeClient) Deploy(ctx context.Context, resource []byte, ns string) (map[string]string, int32, error) {

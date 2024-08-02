@@ -26,28 +26,28 @@ func main() {
 	}
 
 	log.WithFields(log.Fields{
-		"GitHubToken":        cfg.GitHubToken,
-		"WebhookSecret":      cfg.WebhookSecret,
-		"LocalRepoSrcPath":   cfg.LocalRepoSrcPath,
-		"DockerFile":         cfg.DockerFile,
-		"ContainerRegistry":  cfg.ContainerRegistry,
-		"KubeResourcePath":   cfg.KubeResourcePath,
-		"WorkFlowFilePrefix": cfg.WorkFlowFilePrefix,
-		"ImageNameSuffix":    cfg.ImageNameSuffix,
+		"GitHubToken":   cfg.GitHubToken,
+		"WebhookSecret": cfg.WebhookSecret,
+		"LocalRepoPath": cfg.LocalRepoPath,
+		"DockerFile":    cfg.DockerFile,
+		"Registry":      cfg.Registry,
+		"KubeResSrc":    cfg.KubeResSrc,
+		"WFPrefix":      cfg.WFPrefix,
+		"ImageSuffix":   cfg.ImageSuffix,
 	}).Info("Configuration loaded:")
 
 	// Get the GitHub client
 	githubClient := client.NewGithubClient(cfg.GitHubToken)
 
 	// Get kubernetes client
-	kubeClient, err := client.NewKubernetesClient(cfg.KubeConfigFile)
+	kubeClient, err := client.NewKubernetesClient(cfg.KubeConfig)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to initialize Kubernetes client")
 	}
 
 	// Get docker client
 	dockerClient, err := client.NewDockerClient(&client.DockerOptions{
-		ContainerRegistry: cfg.ContainerRegistry,
+		ContainerRegistry: cfg.Registry,
 		RegistryPassword:  cfg.GitHubToken,
 		Dockerfile:        cfg.DockerFile,
 	})
@@ -55,11 +55,11 @@ func main() {
 		log.WithError(err).Fatal("Failed to initialize Docker client")
 	}
 	server := webhook.NewServer(githubClient, kubeClient, dockerClient, &webhook.Options{
-		WebhookSecret:      cfg.WebhookSecret,
-		KubeResourcePath:   cfg.KubeResourcePath,
-		WorkFlowFilePrefix: cfg.WorkFlowFilePrefix,
-		LocalRepoSrcPath:   cfg.LocalRepoSrcPath,
-		ImageNameSuffix:    cfg.ImageNameSuffix,
+		WebhookSecret: cfg.WebhookSecret,
+		KubeResPath:   cfg.KubeResSrc,
+		WFPrefix:      cfg.WFPrefix,
+		LocalRepoPath: cfg.LocalRepoPath,
+		ImageSuffix:   cfg.ImageSuffix,
 	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked
 	http.HandleFunc("/webhook", webhook.WebhookHandler(server))

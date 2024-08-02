@@ -21,7 +21,6 @@ type DockerOptions struct {
 	ContainerRegistry string
 	RegistryPassword  string
 	Dockerfile        string
-	// ImageNameSuffix   string
 }
 
 type DockerClient struct {
@@ -37,11 +36,11 @@ func NewDockerClient(dockerOptions *DockerOptions) (*DockerClient, error) {
 	return &DockerClient{client, dockerOptions}, nil
 }
 
-func (d *DockerClient) ImageBuild(registryOwner, imageName, imageTag, localRepoSrcPath string) error {
+func (d *DockerClient) ImageBuild(registryOwner, imageName, imageTag, localRepoPath string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
 	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
 
-	tar, err := archive.TarWithOptions(localRepoSrcPath, &archive.TarOptions{})
+	tar, err := archive.TarWithOptions(localRepoPath, &archive.TarOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create tar archive: %w", err)
 	}

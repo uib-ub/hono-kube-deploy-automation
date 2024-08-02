@@ -15,11 +15,11 @@ import (
 )
 
 type Options struct {
-	WebhookSecret      string
-	KubeResourcePath   string
-	WorkFlowFilePrefix string
-	LocalRepoSrcPath   string
-	ImageNameSuffix    string
+	WebhookSecret string // Webhook Secret
+	KubeResPath   string // Kube Resource Path
+	WFPrefix      string // Workflow File Prefix
+	LocalRepoPath string // Local Repository Source Path
+	ImageSuffix   string // Image Name Suffix
 }
 type Server struct {
 	GithubClient *client.GithubClient
@@ -27,18 +27,17 @@ type Server struct {
 	DockerClient *client.DockerClient
 	Options      *Options
 }
-
 type eventData struct {
-	ctx                    context.Context
-	namespace              string
-	githubLoginOwner       string
-	githubRepoFullName     string
-	githubRepoName         string
-	githubRepoIssueNumber  int
-	githubRepoBranch       string
-	githubWorkFlowFileName string
-	imageTag               string
-	imageName              string
+	ctx            context.Context
+	namespace      string // namespace
+	ghLoginOwner   string // GitHub login owner
+	ghRepoFullName string // Full name of GitHub repository
+	ghRepoName     string // Name of the repository
+	ghIssueNum     int    // GitHub repository issue number
+	ghBranch       string // GitHub repository branch
+	ghWorkFlowFile string // GitHub workflow file name
+	imageTag       string // Image tag
+	imageName      string // Image name
 }
 
 func NewServer(githubClient *client.GithubClient, kubeClient *client.KubeClient, dockerClient *client.DockerClient, options *Options) *Server {
@@ -78,7 +77,7 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
 	if event.GetIssue().IsPullRequest() && strings.Contains(event.GetComment().GetBody(), "deploy dev") {
 		// Get github repository to local source path
-		err := s.getGithubResource(eventData.githubRepoFullName, eventData.githubRepoBranch)
+		err := s.getGithubResource(eventData.ghRepoFullName, eventData.ghBranch)
 		if err != nil {
 			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 		}
@@ -117,9 +116,9 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 func (s *Server) extractWebhookEventData(event any, namespace string) (*eventData, error) {
 	ctx := context.Background()
 	eventData := &eventData{
-		ctx:                    ctx,
-		namespace:              namespace,
-		githubWorkFlowFileName: fmt.Sprintf("%s-%s.yaml", s.Options.WorkFlowFilePrefix, namespace),
+		ctx:            ctx,
+		namespace:      namespace,
+		ghWorkFlowFile: fmt.Sprintf("%s-%s.yaml", s.Options.WFPrefix, namespace),
 	}
 	switch event := event.(type) {
 	case *github.IssueCommentEvent:
@@ -130,30 +129,30 @@ func (s *Server) extractWebhookEventData(event any, namespace string) (*eventDat
 			event.GetRepo().GetOwner().GetName(),
 			event.GetRepo().GetOwner().GetLogin(),
 		)
-		eventData.githubLoginOwner = event.GetRepo().GetOwner().GetLogin()
-		eventData.githubRepoFullName = event.GetRepo().GetFullName()
-		eventData.githubRepoName = event.GetRepo().GetName()
-		eventData.githubRepoIssueNumber = event.GetIssue().GetNumber()
+		eventData.ghLoginOwner = event.GetRepo().GetOwner().GetLogin()
+		eventData.ghRepoFullName = event.GetRepo().GetFullName()
+		eventData.ghRepoName = event.GetRepo().GetName()
+		eventData.ghIssueNum = event.GetIssue().GetNumber()
 		// Get pull request
-		pr, err := s.GithubClient.GetPullRequest(ctx, eventData.githubLoginOwner, eventData.githubRepoName, eventData.githubRepoIssueNumber)
+		pr, err := s.GithubClient.GetPullRequest(ctx, eventData.ghLoginOwner, eventData.ghRepoName, eventData.ghIssueNum)
 		if err != nil {
 			return nil, err
 		}
-		eventData.githubRepoBranch = pr.GetHead().GetRef()
+		eventData.ghBranch = pr.GetHead().GetRef()
 		eventData.imageTag = pr.GetHead().GetSHA()[:7] // the latest commit SHA in a issue comment event
 	case *github.PullRequestEvent:
-		eventData.githubLoginOwner = event.GetRepo().GetOwner().GetLogin()
-		eventData.githubRepoFullName = event.GetRepo().GetFullName()
-		eventData.githubRepoBranch = event.GetPullRequest().GetBase().GetRef()
+		eventData.ghLoginOwner = event.GetRepo().GetOwner().GetLogin()
+		eventData.ghRepoFullName = event.GetRepo().GetFullName()
+		eventData.ghBranch = event.GetPullRequest().GetBase().GetRef()
 		eventData.imageTag = "latest"
 	default:
 		return nil, fmt.Errorf("unsupported event type: %v", reflect.TypeOf(event))
 	}
 
-	if s.Options.ImageNameSuffix != "" {
-		eventData.imageName = fmt.Sprintf("%s-%s", eventData.githubRepoFullName, s.Options.ImageNameSuffix)
+	if s.Options.ImageSuffix != "" {
+		eventData.imageName = fmt.Sprintf("%s-%s", eventData.ghRepoFullName, s.Options.ImageSuffix)
 	} else {
-		eventData.imageName = eventData.githubRepoFullName
+		eventData.imageName = eventData.ghRepoFullName
 	}
 	log.Debugf("Image name: %s, image tag: %s\n", eventData.imageName, eventData.imageTag)
 
@@ -161,7 +160,7 @@ func (s *Server) extractWebhookEventData(event any, namespace string) (*eventDat
 }
 
 func (s *Server) getGithubResource(githubRepoFullName, githubRepoBranch string) error {
-	err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoSrcPath, githubRepoFullName, githubRepoBranch)
+	err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoPath, githubRepoFullName, githubRepoBranch)
 	if err != nil {
 		return err
 	}
@@ -169,7 +168,7 @@ func (s *Server) getGithubResource(githubRepoFullName, githubRepoBranch string) 
 }
 
 func (s *Server) handleKustomization(ns string) (*[]string, error) {
-	deploykubeResDir := filepath.Join(s.Options.LocalRepoSrcPath, s.Options.KubeResourcePath, ns)
+	deploykubeResDir := filepath.Join(s.Options.LocalRepoPath, s.Options.KubeResPath, ns)
 	kustomizer := client.NewKustomizer(deploykubeResDir)
 	kubeResources, err := kustomizer.Build()
 	if err != nil {
@@ -181,7 +180,7 @@ func (s *Server) handleKustomization(ns string) (*[]string, error) {
 func (s *Server) issueCommentEventDeploy(eventData *eventData, kubeResources *[]string) error {
 	// Build and push container image by handler
 	log.Infof("Build and push the container image for %s enviroment...", eventData.namespace)
-	err := s.handleContainerization("deploy", eventData.githubLoginOwner, eventData.imageName, eventData.imageTag)
+	err := s.handleContainerization("deploy", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
 	if err != nil {
 		return err
 	}
@@ -210,7 +209,7 @@ func (s *Server) issueCommentEventCleanup(eventData *eventData, kubeResources *[
 
 	log.Infof("Delete the container image and repository for %s enviroment...", eventData.namespace)
 	// Clean up local container image
-	err = s.handleContainerization("delete", eventData.githubLoginOwner, eventData.imageName, eventData.imageTag)
+	err = s.handleContainerization("delete", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
 	if err != nil {
 		return err
 	}
@@ -219,7 +218,7 @@ func (s *Server) issueCommentEventCleanup(eventData *eventData, kubeResources *[
 		return err
 	}
 	// Clean up container image on Github packages
-	err = s.cleanupImageOnGithub(eventData.ctx, eventData.githubLoginOwner, eventData.imageName, eventData.imageTag)
+	err = s.cleanupImageOnGithub(eventData.ctx, eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
 	if err != nil {
 		return err
 	}
@@ -237,7 +236,7 @@ func (s *Server) handleContainerization(action, githubLoginOwner, imageName, ima
 		}
 	case "deploy":
 		// Build the container image
-		err := s.DockerClient.ImageBuild(githubLoginOwner, imageName, imageTag, s.Options.LocalRepoSrcPath)
+		err := s.DockerClient.ImageBuild(githubLoginOwner, imageName, imageTag, s.Options.LocalRepoPath)
 		if err != nil {
 			return err
 		}
@@ -252,7 +251,7 @@ func (s *Server) handleContainerization(action, githubLoginOwner, imageName, ima
 
 func (s *Server) cleanupLocalRepository() error {
 	// Clean up local repository
-	if err := s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoSrcPath); err != nil {
+	if err := s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoPath); err != nil {
 		return err
 	}
 	return nil
