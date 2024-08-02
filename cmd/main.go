@@ -33,6 +33,7 @@ func main() {
 		"ContainerRegistry":  cfg.ContainerRegistry,
 		"KubeResourcePath":   cfg.KubeResourcePath,
 		"WorkFlowFilePrefix": cfg.WorkFlowFilePrefix,
+		"ImageNameSuffix":    cfg.ImageNameSuffix,
 	}).Info("Configuration loaded:")
 
 	// Get the GitHub client
@@ -49,7 +50,6 @@ func main() {
 		ContainerRegistry: cfg.ContainerRegistry,
 		RegistryPassword:  cfg.GitHubToken,
 		Dockerfile:        cfg.DockerFile,
-		ImageNameSuffix:   cfg.ImageNameSuffix,
 	})
 	if err != nil {
 		log.WithError(err).Fatal("Failed to initialize Docker client")
@@ -59,9 +59,9 @@ func main() {
 		KubeResourcePath:   cfg.KubeResourcePath,
 		WorkFlowFilePrefix: cfg.WorkFlowFilePrefix,
 		LocalRepoSrcPath:   cfg.LocalRepoSrcPath,
+		ImageNameSuffix:    cfg.ImageNameSuffix,
 	})
 	// Set up route handler, if webhook is triggered, then the http function will be invoked
-	//http.HandleFunc("/webhook", server.WebhookHandler)
 	http.HandleFunc("/webhook", webhook.WebhookHandler(server))
 
 	log.Info("Server instance created, listening on :8080")
