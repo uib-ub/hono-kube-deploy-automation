@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,6 +51,30 @@ func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, i
 		return nil, fmt.Errorf("failed to get pull request: %w", err)
 	}
 	return pr, nil
+}
+
+func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageName, packageType, tag string) error {
+	encodedPackageName := url.PathEscape(packageName)
+	opts := &github.PackageListOptions{PackageType: &packageType}
+	// Search for version ID of the package based on tag
+	packageVersions, _, err := g.Client.Users.PackageGetAllVersions(ctx, owner, packageType, encodedPackageName, opts)
+	if err != nil {
+		return fmt.Errorf("failed to get package versions: %w", err)
+	}
+	for _, pv := range packageVersions {
+		for _, t := range pv.GetMetadata().GetContainer().Tags {
+			if t == tag {
+				// Delete the package version based on the tag
+				_, err := g.Client.Users.PackageDeleteVersion(ctx, owner, packageType, encodedPackageName, pv.GetID())
+				if err != nil {
+					return fmt.Errorf("failed to delete package version: %w", err)
+				}
+				log.Infof("Package version with tag %s is deleted!", tag)
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("package version with tag %s not found", tag)
 }
 
 func (g *GithubClient) DownloadGithubRepository(localRepoSrcPath, repoFullName, branchName string) error {
