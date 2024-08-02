@@ -53,7 +53,7 @@ func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, i
 	return pr, nil
 }
 
-func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageName, packageType, tag string) error {
+func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageType, packageName, tag string) error {
 	encodedPackageName := url.PathEscape(packageName)
 	opts := &github.PackageListOptions{PackageType: &packageType}
 	// Search for version ID of the package based on tag
@@ -69,12 +69,12 @@ func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageNam
 				if err != nil {
 					return fmt.Errorf("failed to delete package version: %w", err)
 				}
-				log.Infof("Package version with tag %s is deleted!", tag)
+				log.Infof("Package %s with version tag %s is deleted!", encodedPackageName, t)
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("package version with tag %s not found", tag)
+	return fmt.Errorf("package %s with version tag %s not found", encodedPackageName, tag)
 }
 
 func (g *GithubClient) DownloadGithubRepository(localRepoSrcPath, repoFullName, branchName string) error {
