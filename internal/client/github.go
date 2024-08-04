@@ -77,6 +77,19 @@ func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageTyp
 	return fmt.Errorf("package %s with version tag %s not found", encodedPackageName, tag)
 }
 
+func (g *GithubClient) TriggerWorkFlow(ctx context.Context, owner, repo, WFFile, branch string) error {
+	log.Infof("Triggering workflow %s for repo %s on branch %s.", WFFile, repo, branch)
+	// Create a new workflow dispatch event
+	opts := &github.CreateWorkflowDispatchEventRequest{
+		Ref: branch,
+	}
+	if _, err := g.Client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, WFFile, *opts); err != nil {
+		return fmt.Errorf("failed to trigger workflow: %w", err)
+	}
+	log.Infof("Workflow %s triggered successfully", WFFile)
+	return nil
+}
+
 func (g *GithubClient) DownloadGithubRepository(localRepoPath, repoFullName, branchName string) error {
 	if branchName == "" {
 		branchName = "main" // Default to master if no branch is specified
