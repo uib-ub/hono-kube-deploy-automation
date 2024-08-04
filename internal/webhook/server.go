@@ -68,38 +68,32 @@ func (s *Server) processWebhookEvents(event any) error {
 func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error {
 	log.Infof("Issue Comment: action=%s, body=%s\n", event.GetAction(), event.GetComment().GetBody())
 
-	eventData, err := s.extractWebhookEventData(event, "dev")
+	eventData, err := s.extractEventData(event, "dev")
 	if err != nil {
 		return errors.NewInternalServerError(fmt.Sprintf("failed to extract webhook event data: %v", err))
 	}
 	log.Infof("Webhook Event Data: %+v\n", eventData)
-
 	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
 	if event.GetIssue().IsPullRequest() && strings.Contains(event.GetComment().GetBody(), "deploy dev") {
 		// Get github repository to local source path
-		err := s.getGithubResource(eventData.ghRepoFullName, eventData.ghBranch)
-		if err != nil {
+		if err := s.getGithubRepo(eventData.ghRepoFullName, eventData.ghBranch); err != nil {
 			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 		}
-
 		// Get kubernetes resources by kustomization for for the dev environment
 		kubeResources, err := s.handleKustomization(eventData.namespace)
 		if err != nil {
 			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 		}
-
 		if event.GetAction() == "deleted" {
 			// Handle the delete action: clean up the deployment/image
 			log.Info("PR comment 'deploy dev' deleted!")
-			err := s.issueCommentEventCleanup(eventData, kubeResources)
-			if err != nil {
+			if err := s.issueCommentEventCleanup(eventData, &kubeResources); err != nil {
 				return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 			}
 		} else {
 			// Handle the create/edit action: create/update the deployment
 			log.Info("PR comment 'deploy dev' found!")
-			err := s.issueCommentEventDeploy(eventData, kubeResources)
-			if err != nil {
+			if err := s.issueCommentEventDeploy(eventData, &kubeResources); err != nil {
 				return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 			}
 		}
@@ -109,11 +103,42 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 
 func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 	log.Infof("Issue Comment: action=%s\n", event.GetAction())
+	eventData, err := s.extractEventData(event, "test")
+	if err != nil {
+		return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+	}
+	// Check if the pull request was merged to the master branch
+	if eventData.ghBranch == "main" && event.GetAction() == "closed" && event.GetPullRequest().GetMerged() {
+		log.Infof("Pull request merged to %s branch", eventData.ghBranch)
+		// Get pull request label and check if it is "deploy-api-test"
+		for _, label := range event.GetPullRequest().Labels {
+			if label.GetName() == "deploy-api-test" {
+				log.Infof("Pull request label: %s", label.GetName())
+				// Get github repository to local source path
+				if err := s.getGithubRepo(eventData.ghRepoFullName, eventData.ghBranch); err != nil {
+					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+				}
+				// Get kubernetes resources by kustomization for for the dev environment
+				kubeResources, err := s.handleKustomization(eventData.namespace)
+				if err != nil {
+					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+				}
 
+				log.Info("Deploy test environment after merging!")
+				if err := s.pullRequestEventDeploy(eventData, &kubeResources); err != nil {
+					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+				}
+				if err := s.pullRequestEventCleanup(eventData); err != nil {
+					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+				}
+				break
+			}
+		}
+	}
 	return nil
 }
 
-func (s *Server) extractWebhookEventData(event any, namespace string) (*eventData, error) {
+func (s *Server) extractEventData(event any, namespace string) (*eventData, error) {
 	ctx := context.Background()
 	eventData := &eventData{
 		ctx:            ctx,
@@ -149,68 +174,54 @@ func (s *Server) extractWebhookEventData(event any, namespace string) (*eventDat
 		return nil, fmt.Errorf("unsupported event type: %v", reflect.TypeOf(event))
 	}
 
-	if s.Options.ImageSuffix != "" {
-		eventData.imageName = fmt.Sprintf("%s-%s", eventData.ghRepoFullName, s.Options.ImageSuffix)
-	} else {
-		eventData.imageName = eventData.ghRepoFullName
-	}
+	eventData.imageName = s.getImageName(eventData.ghRepoFullName)
 	log.Debugf("Image name: %s, image tag: %s\n", eventData.imageName, eventData.imageTag)
 
 	return eventData, nil
 }
 
-func (s *Server) getGithubResource(ghRepoFullName, ghBranch string) error {
-	err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoDir, ghRepoFullName, ghBranch)
-	if err != nil {
-		return err
+func (s *Server) getImageName(repoFullName string) string {
+	if s.Options.ImageSuffix != "" {
+		return fmt.Sprintf("%s-%s", repoFullName, s.Options.ImageSuffix)
 	}
-	return nil
+	return repoFullName
 }
 
-func (s *Server) handleKustomization(ns string) (*[]string, error) {
+func (s *Server) getGithubRepo(ghRepoFullName, ghBranch string) error {
+	return s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoDir, ghRepoFullName, ghBranch)
+}
+
+func (s *Server) handleKustomization(ns string) ([]string, error) {
 	deploykubeResPath := filepath.Join(s.Options.LocalRepoDir, s.Options.KubeResDir, ns)
 	kustomizer := client.NewKustomizer(deploykubeResPath)
-	kubeResources, err := kustomizer.Build()
-	if err != nil {
-		return nil, err
-	}
-	return &kubeResources, nil
+	return kustomizer.Build()
 }
 
 func (s *Server) issueCommentEventDeploy(eventData *eventData, kubeResources *[]string) error {
 	// Build and push container image by handler
 	log.Infof("Build and push the container image for %s enviroment...", eventData.namespace)
-	err := s.handleContainerization("deploy", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
-	if err != nil {
+	if err := s.handleContainerization("deploy", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag); err != nil {
 		return err
 	}
-	log.Info("Build and push the container image finished!")
+	log.Info("Build and push container image finished!")
 	// Deploy to kubernetes
 	log.Infof("Deploy the resources on Kubernetes for %s enviroment...", eventData.namespace)
 	// Handle kubernetes deployment
-	err = s.handleKubeResourcesDeploy(eventData, kubeResources)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Deployment completed for %s enviroment!", eventData.namespace)
-	return nil
+	return s.deployKubeResources(eventData, kubeResources)
 }
 
 func (s *Server) issueCommentEventCleanup(eventData *eventData, kubeResources *[]string) error {
 	// Clean up the deployment on kubernetes by handler
 	log.Infof("Delete the deployment on Kubernetes for %s enviroment...", eventData.namespace)
 	// Clean up kubernetes resources
-	err := s.handleKubeResourecesCleanup(eventData, kubeResources)
-	if err != nil {
+	if err := s.cleanupKubeResoureces(eventData, kubeResources); err != nil {
 		return err
 	}
 	log.Infof("Deleting the deployment on Kubernetes for %s enviroment is finished!", eventData.namespace)
 
 	log.Infof("Delete the container image and repository for %s enviroment...", eventData.namespace)
 	// Clean up local container image
-	err = s.handleContainerization("delete", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
-	if err != nil {
+	if err := s.handleContainerization("delete", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag); err != nil {
 		return err
 	}
 	// Clean up local source repository
@@ -218,62 +229,64 @@ func (s *Server) issueCommentEventCleanup(eventData *eventData, kubeResources *[
 		return err
 	}
 	// Clean up container image on Github packages
-	err = s.cleanupImageOnGithub(eventData.ctx, eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
-	if err != nil {
+	return s.cleanupImageOnGithub(eventData.ctx, eventData.ghLoginOwner, eventData.imageName, eventData.imageTag)
+}
+
+func (s *Server) pullRequestEventDeploy(eventData *eventData, kubeResources *[]string) error {
+	// Build and push container image by handler
+	log.Infof("Build and push the container image for %s enviroment...", eventData.namespace)
+	if err := s.handleContainerization("deploy", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag); err != nil {
 		return err
 	}
-	log.Info("Cleanup completed!")
-	return nil
+	log.Info("Build and push container image finished!")
+	// Deploy to kubernetes
+	log.Infof("Deploy the resources on Kubernetes for %s enviroment...", eventData.namespace)
+	// Handle kubernetes deployment
+	return s.deployKubeResources(eventData, kubeResources)
+}
+
+func (s *Server) pullRequestEventCleanup(eventData *eventData) error {
+	log.Infof("Delete container image for %s enviroment...", eventData.namespace)
+	if err := s.handleContainerization("delete", eventData.ghLoginOwner, eventData.imageName, eventData.imageTag); err != nil {
+		return err
+	}
+	// Clean up local source repository
+	return s.cleanupLocalRepository()
 }
 
 func (s *Server) handleContainerization(action, ghLoginOwner, imageName, imageTag string) error {
 	switch action {
 	case "delete":
 		// Cleanup local container image
-		err := s.DockerClient.ImageDelete(ghLoginOwner, imageName, imageTag)
-		if err != nil {
-			return err
-		}
+		return s.DockerClient.ImageDelete(ghLoginOwner, imageName, imageTag)
 	case "deploy":
 		// Build the container image
-		err := s.DockerClient.ImageBuild(ghLoginOwner, imageName, imageTag, s.Options.LocalRepoDir)
-		if err != nil {
+		if err := s.DockerClient.ImageBuild(ghLoginOwner, imageName, imageTag, s.Options.LocalRepoDir); err != nil {
 			return err
 		}
 		// Push the container image
-		err = s.DockerClient.ImagePush(ghLoginOwner, imageName, imageTag)
-		if err != nil {
-			return err
-		}
+		return s.DockerClient.ImagePush(ghLoginOwner, imageName, imageTag)
 	}
 	return nil
 }
 
 func (s *Server) cleanupLocalRepository() error {
 	// Clean up local repository
-	if err := s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoDir); err != nil {
-		return err
-	}
-	return nil
+	return s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoDir)
 }
 
 func (s *Server) cleanupImageOnGithub(ctx context.Context, ghLoginOwner, imageName, imageTag string) error {
 	packageType := "container"
 	log.Infof("Deleting the package image %s:%s on Github...", imageName, imageTag)
-	err := s.GithubClient.DeletePackageImage(ctx, ghLoginOwner, packageType, imageName, imageTag)
-	if err != nil {
-		return err
-	}
-	return nil
+	return s.GithubClient.DeletePackageImage(ctx, ghLoginOwner, packageType, imageName, imageTag)
 }
 
-func (s *Server) handleKubeResourcesDeploy(eventData *eventData, kubeResources *[]string) error {
+func (s *Server) deployKubeResources(eventData *eventData, kubeResources *[]string) error {
 	// Deploy namespace
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "Namespace") {
 			log.Debugf("found Namespace file:\n%s\n", res)
-			_, _, err := s.KubeClient.Deploy(eventData.ctx, []byte(res), eventData.namespace)
-			if err != nil {
+			if _, _, err := s.KubeClient.Deploy(eventData.ctx, []byte(res), eventData.namespace); err != nil {
 				return fmt.Errorf("failed to deploy namespace: %v", err)
 			}
 			break
@@ -290,8 +303,7 @@ func (s *Server) handleKubeResourcesDeploy(eventData *eventData, kubeResources *
 			res = strings.Replace(res, "latest", eventData.imageTag, -1)
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
-		_, _, err := s.KubeClient.Deploy(eventData.ctx, []byte(res), eventData.namespace)
-		if err != nil {
+		if _, _, err := s.KubeClient.Deploy(eventData.ctx, []byte(res), eventData.namespace); err != nil {
 			return err
 		}
 	}
@@ -299,14 +311,13 @@ func (s *Server) handleKubeResourcesDeploy(eventData *eventData, kubeResources *
 	return nil
 }
 
-func (s *Server) handleKubeResourecesCleanup(eventData *eventData, kubeResources *[]string) error {
+func (s *Server) cleanupKubeResoureces(eventData *eventData, kubeResources *[]string) error {
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "kind: Deployment") {
 			res = strings.Replace(res, "latest", eventData.imageTag, -1)
 		}
 		log.Debugf("Delete resource:\n%s\n", res)
-		err := s.KubeClient.Delete(eventData.ctx, []byte(res), eventData.namespace)
-		if err != nil {
+		if err := s.KubeClient.Delete(eventData.ctx, []byte(res), eventData.namespace); err != nil {
 			return err
 		}
 	}
