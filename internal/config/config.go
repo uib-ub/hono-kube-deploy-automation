@@ -9,12 +9,12 @@ import (
 )
 
 const (
-	defaultLocalRepoSrc = "app"                 // default local repository source folder
-	defaultDockerFile   = "Dockerfile"          // default Dockerfile
-	defaultRegistry     = "ghcr.io"             // default container registry
-	defaultKubeResSrc   = "microk8s-hono-api"   // default Kubernetes resource source folder
-	defaultWFPrefix     = "kube-secrets-deploy" // default Github workflow file name prefix
-	defaultImageSuffix  = "api"                 // default Docker Image name suffix
+	defaultLocalRepoSrc = "app"                     // default local repository source folder
+	defaultDockerFile   = "Dockerfile"              // default Dockerfile
+	defaultRegistry     = "ghcr.io"                 // default container registry
+	defaultKubeResSrc   = "microk8s-hono-api"       // default Kubernetes resource source folder
+	defaultWFPrefix     = "deploy-hono-api-secrets" // default Github workflow file name prefix
+	defaultImageSuffix  = "api"                     // default Docker Image name suffix
 )
 
 type Config struct {
