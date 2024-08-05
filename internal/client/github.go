@@ -121,8 +121,131 @@ func (g *GithubClient) TriggerWorkFlow(
 	); err != nil {
 		return fmt.Errorf("failed to trigger workflow: %w", err)
 	}
-	log.Infof("Workflow %s triggered successfully", WFFile)
+	log.Infof("Workflow %s is triggered", WFFile)
+
+	if err := g.waitForWorkflowCompletion(ctx, owner, repo, WFFile, branch); err != nil {
+		return fmt.Errorf("failed to wait for workflow completion: %w", err)
+	}
 	return nil
+}
+
+func (g *GithubClient) waitForWorkflowCompletion(
+	ctx context.Context,
+	owner,
+	repo,
+	WFFile,
+	branch string,
+) error {
+	// Set the initial interval, max interval, and max duration for polling
+	initialInterval := 5 * time.Second // Set to 5 seconds.
+	maxInterval := 30 * time.Second    // Set to 30 seconds to prevent long delays between polls
+	maxDuration := 1 * time.Minute     // Total duration of the polling loop is capped at 1 minutes.
+
+	startTime := time.Now()
+	interval := initialInterval
+
+	// Polling loop to check the workflow status periodically
+	for {
+		// Fetch the latest workflow status and conclusion
+		status, conclusion, err := g.getLatestWorkflowRunStatus(ctx, owner, repo, WFFile, branch)
+		if err != nil {
+			return fmt.Errorf("failed to get latest workflow status: %w", err)
+		}
+
+		log.Infof("Current workflow %s status: %s, conclusion: %s", WFFile, status, conclusion)
+
+		// Handle the workflow status
+		if status == "completed" {
+			if err := g.handleWorkflowConclusion(WFFile, conclusion); err != nil {
+				return err
+			}
+		} else {
+			log.Infof("Workflow %s is still %s", WFFile, status)
+		}
+		// Continue to the final check if the workflow is still running
+		// Check if the maximum duration has been reached
+		if time.Since(startTime) >= maxDuration {
+			break
+		}
+		// Wait for the current interval before polling again
+		time.Sleep(interval)
+		// Exponentially increase the interval, but don't exceed the max interval
+		if interval*2 < maxInterval {
+			interval *= 2
+		} else {
+			interval = maxInterval
+		}
+	}
+	log.Info("Polling loop completed. Now start a final check.")
+	// Final check after the loop
+	return g.workflowFinalCheck(ctx, owner, repo, WFFile, branch)
+}
+
+func (g *GithubClient) handleWorkflowConclusion(WFFile, conclusion string) error {
+	switch conclusion {
+	case "success":
+		log.Infof("Workflow %s completed successfully", WFFile)
+		// Do not return here, let the caller decide
+	case "failure":
+		return fmt.Errorf("workflow %s failed", WFFile)
+	case "neutral", "cancelled", "timed_out", "action_required":
+		return fmt.Errorf("workflow %s ended with conclusion: %s", WFFile, conclusion)
+	default:
+		return fmt.Errorf("unknown workflow conclusion: %s", conclusion)
+	}
+	return nil
+}
+
+func (g *GithubClient) workflowFinalCheck(
+	ctx context.Context,
+	owner,
+	repo,
+	WFFile,
+	branch string,
+) error {
+	status, conclusion, err := g.getLatestWorkflowRunStatus(ctx, owner, repo, WFFile, branch)
+	if err != nil {
+		return fmt.Errorf("failed to get final workflow status: %w", err)
+	}
+
+	log.Infof("Final workflow %s status: %s, conclusion: %s", WFFile, status, conclusion)
+	// Determine the final outcome based on the status and conclusion
+	if status == "completed" {
+		switch conclusion {
+		case "success":
+			log.Infof("Final check: Workflow %s completed successfully", WFFile)
+			return nil
+		case "failure":
+			return fmt.Errorf("final check: workflow %s failed", WFFile)
+		default:
+			return fmt.Errorf("final check: workflow %s ended with conclusion: %s", WFFile, conclusion)
+		}
+	}
+	return fmt.Errorf("timed out waiting for GitHub workflow completion")
+}
+
+func (g *GithubClient) getLatestWorkflowRunStatus(
+	ctx context.Context,
+	owner,
+	repo,
+	WFFile,
+	branch string,
+) (string, string, error) {
+	// Get the latest workflow run for the workflow ID
+	runs, _, err := g.Client.Actions.ListWorkflowRunsByFileName(
+		ctx,
+		owner,
+		repo,
+		WFFile,
+		&github.ListWorkflowRunsOptions{Branch: branch, ListOptions: github.ListOptions{PerPage: 1}},
+	)
+	if err != nil {
+		return "", "", err
+	}
+	if len(runs.WorkflowRuns) == 0 {
+		return "", "", fmt.Errorf("no workflow runs found")
+	}
+	return runs.WorkflowRuns[0].GetStatus(), runs.WorkflowRuns[0].GetConclusion(), nil
 }
 
 func (g *GithubClient) DownloadGithubRepository(

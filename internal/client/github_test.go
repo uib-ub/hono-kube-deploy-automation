@@ -72,3 +72,30 @@ func TestDeleteLocalRepository(t *testing.T) {
 		}
 	}
 }
+
+var workflowTestCases = []struct {
+	ctx          context.Context
+	owner        string
+	repo         string
+	WFFile       string
+	branch       string
+	githubClient *GithubClient
+}{
+	{
+		ctx:          context.Background(),
+		owner:        "uib-ub",
+		repo:         "uib-ub-monorepo",
+		WFFile:       "deploy-kube-secrets-hono-api-test.yaml",
+		branch:       "test-webhook",
+		githubClient: NewGithubClient(os.Getenv("GITHUB_TOKEN")),
+	},
+}
+
+func TestTriggerWorkFlow(t *testing.T) {
+	for i, tc := range workflowTestCases {
+		err := tc.githubClient.TriggerWorkFlow(tc.ctx, tc.owner, tc.repo, tc.WFFile, tc.branch)
+		if err != nil {
+			t.Errorf("failed to trigger workflow in test case %d: expected nil, got %v", i, err)
+		}
+	}
+}
