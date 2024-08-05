@@ -40,7 +40,12 @@ type eventData struct {
 	imageName      string // Image name
 }
 
-func NewServer(githubClient *client.GithubClient, kubeClient *client.KubeClient, dockerClient *client.DockerClient, options *Options) *Server {
+func NewServer(
+	githubClient *client.GithubClient,
+	kubeClient *client.KubeClient,
+	dockerClient *client.DockerClient,
+	options *Options,
+) *Server {
 	return &Server{
 		GithubClient: githubClient,
 		KubeClient:   kubeClient,
@@ -60,7 +65,8 @@ func (s *Server) processWebhookEvents(event any) error {
 		log.Info("Received pull request event")
 		return s.handlePullRequestEvent(e)
 	default:
-		return errors.NewInternalServerError(fmt.Sprintf("Unsupported event type: %v", reflect.TypeOf(e)))
+		errMsg := fmt.Sprintf("Unsupported event type: %v", reflect.TypeOf(e))
+		return errors.NewInternalServerError(errMsg)
 	}
 	return nil
 }
@@ -70,7 +76,8 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 
 	data, err := s.extractEventData(event, "dev")
 	if err != nil {
-		return errors.NewInternalServerError(fmt.Sprintf("failed to extract webhook event data: %v", err))
+		errMsg := fmt.Sprintf("failed to extract webhook event data: %v", err)
+		return errors.NewInternalServerError(errMsg)
 	}
 	log.Infof("Webhook Event Data: %+v\n", data)
 	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
@@ -159,7 +166,12 @@ func (s *Server) extractEventData(event any, namespace string) (*eventData, erro
 		data.ghRepoName = event.GetRepo().GetName()
 		data.ghIssueNum = event.GetIssue().GetNumber()
 		// Get pull request
-		pr, err := s.GithubClient.GetPullRequest(ctx, data.ghLoginOwner, data.ghRepoName, data.ghIssueNum)
+		pr, err := s.GithubClient.GetPullRequest(
+			ctx,
+			data.ghLoginOwner,
+			data.ghRepoName,
+			data.ghIssueNum,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -200,7 +212,12 @@ func (s *Server) handleKustomization(ns string) ([]string, error) {
 func (s *Server) issueCommentEventDeploy(data *eventData, kubeResources *[]string) error {
 	// Build and push container image by handler
 	log.Infof("Build and push the container image for %s enviroment...", data.namespace)
-	if err := s.handleContainerization("deploy", data.ghLoginOwner, data.imageName, data.imageTag); err != nil {
+	if err := s.handleContainerization(
+		"deploy",
+		data.ghLoginOwner,
+		data.imageName,
+		data.imageTag,
+	); err != nil {
 		return err
 	}
 	log.Info("Build and push container image finished!")
@@ -221,7 +238,12 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 
 	log.Infof("Delete the container image and repository for %s enviroment...", data.namespace)
 	// Clean up local container image
-	if err := s.handleContainerization("delete", data.ghLoginOwner, data.imageName, data.imageTag); err != nil {
+	if err := s.handleContainerization(
+		"delete",
+		data.ghLoginOwner,
+		data.imageName,
+		data.imageTag,
+	); err != nil {
 		return err
 	}
 	// Clean up local source repository
@@ -235,7 +257,12 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 func (s *Server) pullRequestEventDeploy(data *eventData, kubeResources *[]string) error {
 	// Build and push container image by handler
 	log.Infof("Build and push the container image for %s enviroment...", data.namespace)
-	if err := s.handleContainerization("deploy", data.ghLoginOwner, data.imageName, data.imageTag); err != nil {
+	if err := s.handleContainerization(
+		"deploy",
+		data.ghLoginOwner,
+		data.imageName,
+		data.imageTag,
+	); err != nil {
 		return err
 	}
 	log.Info("Build and push container image finished!")
@@ -247,7 +274,12 @@ func (s *Server) pullRequestEventDeploy(data *eventData, kubeResources *[]string
 
 func (s *Server) pullRequestEventCleanup(data *eventData) error {
 	log.Infof("Delete container image for %s enviroment...", data.namespace)
-	if err := s.handleContainerization("delete", data.ghLoginOwner, data.imageName, data.imageTag); err != nil {
+	if err := s.handleContainerization(
+		"delete",
+		data.ghLoginOwner,
+		data.imageName,
+		data.imageTag,
+	); err != nil {
 		return err
 	}
 	// Clean up local source repository
@@ -261,7 +293,12 @@ func (s *Server) handleContainerization(action, ghLoginOwner, imageName, imageTa
 		return s.DockerClient.ImageDelete(ghLoginOwner, imageName, imageTag)
 	case "deploy":
 		// Build the container image
-		if err := s.DockerClient.ImageBuild(ghLoginOwner, imageName, imageTag, s.Options.LocalRepoDir); err != nil {
+		if err := s.DockerClient.ImageBuild(
+			ghLoginOwner,
+			imageName,
+			imageTag,
+			s.Options.LocalRepoDir,
+		); err != nil {
 			return err
 		}
 		// Push the container image
@@ -275,7 +312,12 @@ func (s *Server) cleanupLocalRepository() error {
 	return s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoDir)
 }
 
-func (s *Server) cleanupImageOnGithub(ctx context.Context, ghLoginOwner, imageName, imageTag string) error {
+func (s *Server) cleanupImageOnGithub(
+	ctx context.Context,
+	ghLoginOwner,
+	imageName,
+	imageTag string,
+) error {
 	packageType := "container"
 	log.Infof("Deleting the package image %s:%s on Github...", imageName, imageTag)
 	return s.GithubClient.DeletePackageImage(ctx, ghLoginOwner, packageType, imageName, imageTag)
@@ -286,7 +328,11 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "Namespace") {
 			log.Debugf("found Namespace file:\n%s\n", res)
-			if _, _, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace); err != nil {
+			if _, _, err := s.KubeClient.Deploy(
+				data.ctx,
+				[]byte(res),
+				data.namespace,
+			); err != nil {
 				return fmt.Errorf("failed to deploy namespace: %v", err)
 			}
 			break
@@ -294,7 +340,13 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	}
 
 	// Trigger github workflow to deploy kubernetes secrets
-	if err := s.GithubClient.TriggerWorkFlow(data.ctx, data.ghLoginOwner, data.ghRepoName, data.ghWorkFlowFile, data.ghBranch); err != nil {
+	if err := s.GithubClient.TriggerWorkFlow(
+		data.ctx,
+		data.ghLoginOwner,
+		data.ghRepoName,
+		data.ghWorkFlowFile,
+		data.ghBranch,
+	); err != nil {
 		return err
 	}
 

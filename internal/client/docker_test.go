@@ -33,7 +33,12 @@ func TestImageBuild(t *testing.T) {
 			t.Errorf("failed to create docker client in test case %d: expected nil, got %v", i, err)
 		}
 
-		err = dockerClient.ImageBuild(tc.registryOwner, tc.imageName, tc.imageTag, tc.localRepoSrcPath)
+		err = dockerClient.ImageBuild(
+			tc.registryOwner,
+			tc.imageName,
+			tc.imageTag,
+			tc.localRepoSrcPath,
+		)
 		if err != nil {
 			t.Errorf("failed to build image in test case %d: expected nil, got %v", i, err)
 		}

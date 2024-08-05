@@ -29,16 +29,30 @@ type DockerClient struct {
 }
 
 func NewDockerClient(dockerOptions *DockerOptions) (*DockerClient, error) {
-	client, err := dockercli.NewClientWithOpts(dockercli.FromEnv, dockercli.WithAPIVersionNegotiation())
+	client, err := dockercli.NewClientWithOpts(
+		dockercli.FromEnv,
+		dockercli.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
 	return &DockerClient{client, dockerOptions}, nil
 }
 
-func (d *DockerClient) ImageBuild(registryOwner, imageName, imageTag, localRepoPath string) error {
+func (d *DockerClient) ImageBuild(
+	registryOwner,
+	imageName,
+	imageTag,
+	localRepoPath string,
+) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
+	registryNameWithTag := fmt.Sprintf(
+		"%s/%s/%s:%s",
+		containerRegistry,
+		registryOwner,
+		imageName,
+		imageTag,
+	)
 
 	tar, err := archive.TarWithOptions(localRepoPath, &archive.TarOptions{})
 	if err != nil {
@@ -65,7 +79,14 @@ func (d *DockerClient) ImageBuild(registryOwner, imageName, imageTag, localRepoP
 
 func (d *DockerClient) ImagePush(registryOwner, imageName, imageTag string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
+	registryNameWithTag := fmt.Sprintf(
+		"%s/%s/%s:%s",
+		containerRegistry,
+		registryOwner,
+		imageName,
+		imageTag,
+	)
+
 	registryPassword := d.DockerOptions.RegistryPassword
 
 	authConfig := registry.AuthConfig{
@@ -97,7 +118,13 @@ func (d *DockerClient) ImagePush(registryOwner, imageName, imageTag string) erro
 
 func (d *DockerClient) ImageDelete(registryOwner, imageName, imageTag string) error {
 	containerRegistry := d.DockerOptions.ContainerRegistry
-	registryNameWithTag := fmt.Sprintf("%s/%s/%s:%s", containerRegistry, registryOwner, imageName, imageTag)
+	registryNameWithTag := fmt.Sprintf(
+		"%s/%s/%s:%s",
+		containerRegistry,
+		registryOwner,
+		imageName,
+		imageTag,
+	)
 
 	removeOptions := image.RemoveOptions{
 		Force:         true,

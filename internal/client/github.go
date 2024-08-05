@@ -45,7 +45,12 @@ func (g *GithubClient) GetWebhookEvent(req *http.Request, WebhookSecret string) 
 	return event, nil
 }
 
-func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, issueNum int) (*github.PullRequest, error) {
+func (g *GithubClient) GetPullRequest(
+	ctx context.Context,
+	owner,
+	repo string,
+	issueNum int,
+) (*github.PullRequest, error) {
 	pr, _, err := g.PullRequests.Get(ctx, owner, repo, issueNum)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pull request: %w", err)
@@ -53,11 +58,23 @@ func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, i
 	return pr, nil
 }
 
-func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageType, packageName, tag string) error {
+func (g *GithubClient) DeletePackageImage(
+	ctx context.Context,
+	owner,
+	packageType,
+	packageName,
+	tag string,
+) error {
 	encodedPackageName := url.PathEscape(packageName)
 	opts := &github.PackageListOptions{PackageType: &packageType}
 	// Search for version ID of the package based on tag
-	packageVersions, _, err := g.Client.Users.PackageGetAllVersions(ctx, owner, packageType, encodedPackageName, opts)
+	packageVersions, _, err := g.Client.Users.PackageGetAllVersions(
+		ctx,
+		owner,
+		packageType,
+		encodedPackageName,
+		opts,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to get package versions: %w", err)
 	}
@@ -65,7 +82,13 @@ func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageTyp
 		for _, t := range pv.GetMetadata().GetContainer().Tags {
 			if t == tag {
 				// Delete the package version based on the tag
-				_, err := g.Client.Users.PackageDeleteVersion(ctx, owner, packageType, encodedPackageName, pv.GetID())
+				_, err := g.Client.Users.PackageDeleteVersion(
+					ctx,
+					owner,
+					packageType,
+					encodedPackageName,
+					pv.GetID(),
+				)
 				if err != nil {
 					return fmt.Errorf("failed to delete package version: %w", err)
 				}
@@ -77,20 +100,36 @@ func (g *GithubClient) DeletePackageImage(ctx context.Context, owner, packageTyp
 	return fmt.Errorf("package %s with version tag %s not found", encodedPackageName, tag)
 }
 
-func (g *GithubClient) TriggerWorkFlow(ctx context.Context, owner, repo, WFFile, branch string) error {
+func (g *GithubClient) TriggerWorkFlow(
+	ctx context.Context,
+	owner,
+	repo,
+	WFFile,
+	branch string,
+) error {
 	log.Infof("Triggering workflow %s for repo %s on branch %s.", WFFile, repo, branch)
 	// Create a new workflow dispatch event
 	opts := &github.CreateWorkflowDispatchEventRequest{
 		Ref: branch,
 	}
-	if _, err := g.Client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, WFFile, *opts); err != nil {
+	if _, err := g.Client.Actions.CreateWorkflowDispatchEventByFileName(
+		ctx,
+		owner,
+		repo,
+		WFFile,
+		*opts,
+	); err != nil {
 		return fmt.Errorf("failed to trigger workflow: %w", err)
 	}
 	log.Infof("Workflow %s triggered successfully", WFFile)
 	return nil
 }
 
-func (g *GithubClient) DownloadGithubRepository(localRepoPath, repoFullName, branchName string) error {
+func (g *GithubClient) DownloadGithubRepository(
+	localRepoPath,
+	repoFullName,
+	branchName string,
+) error {
 	if branchName == "" {
 		branchName = "main" // Default to master if no branch is specified
 	}
@@ -109,7 +148,14 @@ func (g *GithubClient) DownloadGithubRepository(localRepoPath, repoFullName, bra
 	if _, err := os.Stat(filepath.Join(localRepoPath, ".git")); os.IsNotExist(err) {
 		// clone the repository .git doesn't exist
 		log.Infof("Cloning repository %s into %s", githubRepoUrl, localRepoPath)
-		if err := g.runCmd("git", "clone", "-b", branchName, githubRepoUrl, localRepoPath); err != nil {
+		if err := g.runCmd(
+			"git",
+			"clone",
+			"-b",
+			branchName,
+			githubRepoUrl,
+			localRepoPath,
+		); err != nil {
 			return fmt.Errorf("failed to clone git repository to local source path: %w", err)
 		}
 	} else {

@@ -27,9 +27,15 @@ var delateImageTestCases = []struct {
 
 func TestDeletePackageImage(t *testing.T) {
 	for i, tc := range delateImageTestCases {
-		err := tc.githubClient.DeletePackageImage(tc.ctx, tc.owner, tc.packageType, tc.packageName, tc.tag)
+		err := tc.githubClient.DeletePackageImage(
+			tc.ctx,
+			tc.owner,
+			tc.packageType,
+			tc.packageName,
+			tc.tag,
+		)
 		if err != nil {
-			t.Errorf("DeletePackageImage() failed in test case %d: expected nil, got %v", i, err)
+			t.Errorf("failed delete package image in test case %d: expected nil, got %v", i, err)
 		}
 	}
 }
@@ -53,7 +59,7 @@ func TestDownloadGithubRepository(t *testing.T) {
 	for i, tc := range githubRepositoryTestCases {
 		err := tc.githubClient.DownloadGithubRepository(tc.destPath, tc.repo, tc.branch)
 		if err != nil {
-			t.Errorf("DownloadGithubRepository() failed in test case %d: expected nil, got %v", i, err)
+			t.Errorf("failed to download Github repo in test case %d: expected nil, got %v", i, err)
 		}
 	}
 }
@@ -62,7 +68,7 @@ func TestDeleteLocalRepository(t *testing.T) {
 	for i, tc := range githubRepositoryTestCases {
 		err := tc.githubClient.DeleteLocalRepository(tc.destPath)
 		if err != nil {
-			t.Errorf("DeleteLocalRepository() failed in test case %d: expected nil, got %v", i, err)
+			t.Errorf("failed to delete local repo in test case %d: expected nil, got %v", i, err)
 		}
 	}
 }
