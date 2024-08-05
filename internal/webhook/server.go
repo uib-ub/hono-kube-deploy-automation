@@ -72,14 +72,15 @@ func (s *Server) processWebhookEvents(event any) error {
 }
 
 func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error {
-	log.Infof("Issue Comment: action=%s, body=%s\n", event.GetAction(), event.GetComment().GetBody())
+	log.Infof("Issue Comment: action=%s", event.GetAction())
 
-	data, err := s.extractEventData(event, "dev")
+	// TODO: chenge from "hono-api-dev" namespace to "hono-api-test" namespace for testing purposes
+	data, err := s.extractEventData(event, "hono-api-test")
 	if err != nil {
 		errMsg := fmt.Sprintf("failed to extract webhook event data: %v", err)
 		return errors.NewInternalServerError(errMsg)
 	}
-	log.Infof("Webhook Event Data: %+v\n", data)
+	log.Infof("Webhook Event Data: %+v\n", *data)
 	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
 	if event.GetIssue().IsPullRequest() && strings.Contains(event.GetComment().GetBody(), "deploy dev") {
 		// Get github repository to local source path
@@ -110,7 +111,7 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 
 func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 	log.Infof("Issue Comment: action=%s\n", event.GetAction())
-	data, err := s.extractEventData(event, "test")
+	data, err := s.extractEventData(event, "hono-api-test")
 	if err != nil {
 		return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 	}
@@ -355,8 +356,10 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		if strings.Contains(res, "Namespace") {
 			continue
 		}
-		if strings.Contains(res, "Kind: Deployment") && data.imageTag != "latest" {
+		log.Infof("data image tag: %s", data.imageTag)
+		if strings.Contains(res, "kind: Deployment") && data.imageTag != "latest" {
 			res = strings.Replace(res, "latest", data.imageTag, -1)
+			log.Infof("replaced image tag: %s in res: %s", data.imageTag, res)
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
 		if _, _, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace); err != nil {
