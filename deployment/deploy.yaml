@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-deploy-hono
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: github-deploy-hono
+  template:
+    metadata:
+      labels:
+        app: github-deploy-hono
+    spec:
+      serviceAccountName: github-deploy-hono
+      containers:
+      - name: github-deploy-hono
+        image: wruiwr/github-deploy-hono:v1.0.0
+        imagePullPolicy: Always
+        ports:
+        - name: http-port
+          containerPort: 8080
+        env:
+          - name: DOCKER_HOST
+            value: "unix:///var/run/docker.sock"
+          - name: GITHUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-deploy-hono
+                key: github-token
+                optional: false
+          - name: WEBHOOK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: github-deploy-hono
+                key: webhook-secret
+                optional: false
+        securityContext:
+          privileged: true  # Required for Docker-in-Docker unless using socket mounting
+          readOnlyRootFilesystem: false # Set to true if your app does not need to write to the filesystem
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: lib-modules
+          mountPath: /lib/modules
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+      volumes:
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+          type: Directory
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-deploy-hono
+spec:
+  type: ClusterIP
+  ports:
+  - name: github-deploy-hono-http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: github-deploy-hono
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-deploy-hono
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: github-deploy-hono
+rules:
+- apiGroups: ["*"] # ["apps"]
+  resources: ["*"] # ["deployments"]
+  verbs: ["*"] # ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-deploy-hono
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: github-deploy-hono
+  namespace: default
+roleRef:
+  kind: Role
+  name: github-deploy-hono
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-git-deploy-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: lets-encrypt
+spec:
+  tls:
+    - hosts:
+        - api-git-deploy.testdu.uib.no
+      secretName: api-git-deploy-ingress-tls
+  rules:
+    - host: api-git-deploy.testdu.uib.no
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: 
+                name: github-deploy-hono
+                port:
+                  number: 80
+              
