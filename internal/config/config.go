@@ -5,62 +5,109 @@ import (
 	"os"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
-)
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/viper"
 
-const (
-	defaultLocalRepoSrc = "app"                 // default local repository source folder
-	defaultDockerFile   = "Dockerfile"          // default Dockerfile
-	defaultRegistry     = "ghcr.io"             // default container registry
-	defaultKubeResSrc   = "microk8s-hono-api"   // default Kubernetes resource source folder
-	defaultWFPrefix     = "deploy-kube-secrets" // default Github workflow file name prefix
-	defaultImageSuffix  = "api"                 // default Docker Image name suffix
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
 	GitHubToken   string
 	WebhookSecret string
-	KubeConfig    string // Kubernetes config file
-	LocalRepoDir  string // local repository path
-	DockerFile    string // DockerFile
-	Registry      string // container registry
-	KubeResSrc    string // Kubernetes resource source folder
-	WFPrefix      string // Github workflow file name prefix
-	ImageSuffix   string // Docker Image name suffix
+	KubeConfig    string
+	Github        GithubConfig
+	Kubernetes    KubernetesConfig
+	Container     ContainerConfig
 }
 
-func LoadConfig() (*Config, error) {
+type GithubConfig struct {
+	WorkflowPrefix string
+	LocalRepo      string
+}
 
-	localRepoDir, err := getLocalRepoPath(getEnv("LOCAL_REPO_SRC", defaultLocalRepoSrc))
-	if err != nil {
+type KubernetesConfig struct {
+	Resource      string
+	DevNamespace  string
+	TestNamespace string
+}
+
+type ContainerConfig struct {
+	Registry    string
+	Dockerfile  string
+	ImageSuffix string
+}
+
+const (
+	configPath = "./internal/config"
+	configName = "config"
+	configType = "yaml"
+)
+
+func NewConfig() (*Config, error) {
+	// Set the base properties of Viper
+	viper.SetConfigType(configType)
+	viper.SetConfigName(configName)
+	viper.AddConfigPath(configPath)
+
+	// Automatically use environment variables where available
+	viper.AutomaticEnv()
+
+	// Bind specific environment variables
+	if err := bindEnvironmentVariables(); err != nil {
 		return nil, err
 	}
 
-	config := &Config{
-		GitHubToken:   getEnv("GITHUB_TOKEN", ""),
-		WebhookSecret: getEnv("WEBHOOK_SECRET", ""),
-		KubeConfig:    getEnv("KUBECONFIG", ""),
-		LocalRepoDir:  localRepoDir,
-		DockerFile:    getEnv("DOCKERFILE", defaultDockerFile),
-		Registry:      getEnv("CONTAINER_REGISTRY", defaultRegistry),
-		KubeResSrc:    getEnv("KUBE_RESOURCE", defaultKubeResSrc),
-		WFPrefix:      getEnv("WORKFLOW_PREFIX", defaultWFPrefix),
-		ImageSuffix:   getEnv("IMAGE_SUFFIX", defaultImageSuffix),
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("failed to read config file: %s", err)
+	}
+
+	// Setup watch on configuration file changes
+	watchConfig()
+
+	var config Config
+
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %s", err)
 	}
 
 	if config.WebhookSecret == "" || config.GitHubToken == "" {
 		return nil, fmt.Errorf("missing required configuration")
 	}
 
-	return config, nil
+	localRepoDir, err := getLocalRepoPath(config.Github.LocalRepo)
+	if err != nil {
+		return nil, err
+	}
+	// update the local repo path
+	config.Github.LocalRepo = localRepoDir
+
+	return &config, nil
 }
 
-// getEnv fetches an environment variable or returns a default value if not set.
-func getEnv(key, fallback string) string {
-	if value, exists := os.LookupEnv(key); exists && value != "" {
-		return value
+func bindEnvironmentVariables() error {
+	if err := viper.BindEnv("GitHubToken", "GITHUB_TOKEN"); err != nil {
+		return fmt.Errorf("error binding GITHUB_TOKEN: %w", err)
 	}
-	return fallback
+	if err := viper.BindEnv("WebhookSecret", "WEBHOOK_SECRET"); err != nil {
+		return fmt.Errorf("error binding WEBHOOK_SECRET: %w", err)
+	}
+	if err := viper.BindEnv("KubeConfig", "KUBE_CONFIG"); err != nil {
+		return fmt.Errorf("error binding KUBE_CONFIG: %w", err)
+	}
+	return nil
+}
+
+func watchConfig() {
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		log.Infof("Config file %s changed:", e.Name)
+		// Reload or re-unmarshal the config as necessary
+		var config Config
+		if err := viper.Unmarshal(&config); err != nil {
+			log.Warnf("Failed to unmarshal config on reload: %s", err)
+		}
+		log.Info("Config reloaded successfully.")
+	})
 }
 
 func getLocalRepoPath(localRepoSrcFolder string) (string, error) {

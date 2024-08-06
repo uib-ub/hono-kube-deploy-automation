@@ -20,6 +20,8 @@ type Options struct {
 	WFPrefix      string // Workflow File Prefix
 	LocalRepoDir  string // Local Repository Source Path
 	ImageSuffix   string // Image Name Suffix
+	DevNamespace  string // Dev Namespace
+	TestNamespace string // Test Namespace
 }
 type Server struct {
 	GithubClient *client.GithubClient
@@ -75,7 +77,7 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 	log.Infof("Issue Comment: action=%s", event.GetAction())
 
 	// TODO: chenge from "hono-api-dev" namespace to "hono-api-test" namespace for testing purposes
-	data, err := s.extractEventData(event, "hono-api-test")
+	data, err := s.extractEventData(event, s.Options.DevNamespace)
 	if err != nil {
 		errMsg := fmt.Sprintf("failed to extract webhook event data: %v", err)
 		return errors.NewInternalServerError(errMsg)
@@ -111,7 +113,7 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 
 func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 	log.Infof("Issue Comment: action=%s\n", event.GetAction())
-	data, err := s.extractEventData(event, "hono-api-test")
+	data, err := s.extractEventData(event, s.Options.TestNamespace)
 	if err != nil {
 		return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 	}
