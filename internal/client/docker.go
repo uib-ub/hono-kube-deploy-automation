@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	dockercli "github.com/docker/docker/client"
@@ -137,6 +138,37 @@ func (d *DockerClient) ImageDelete(registryOwner, imageName, imageTag string) er
 		return fmt.Errorf("failed to delete image: %w", err)
 	}
 
+	if err := d.pruneDanglingImages(); err != nil {
+		return err
+	}
+
 	log.Infof("Image %s is deleted locally", registryNameWithTag)
+	return nil
+}
+
+func (d *DockerClient) pruneDanglingImages() error {
+	// Set up filter to only target dangling images
+	// 'Dangling' images are those tagged with <none>
+	pruneFilters := filters.NewArgs()
+	pruneFilters.Add("dangling", "true") // This targets only untagged images
+
+	// Execute the prune operation
+	report, err := d.Client.ImagesPrune(context.Background(), pruneFilters)
+	if err != nil {
+		return fmt.Errorf("failed to prune dangling images: %w", err)
+	}
+	// Log the total space reclaimed by pruning
+	log.Infof("Pruned dangling Docker images, reclaimed %d bytes", report.SpaceReclaimed)
+
+	// Log details of pruned images for verification
+	for _, image := range report.ImagesDeleted {
+		if image.Untagged != "" {
+			log.Infof("Untagged image pruned: %s", image.Untagged)
+		}
+		if image.Deleted != "" {
+			log.Infof("Deleted image ID: %s", image.Deleted)
+		}
+	}
+
 	return nil
 }
