@@ -16,6 +16,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -259,4 +260,42 @@ func getReplicas(obj any) int32 {
 		}
 	}
 	return 0
+}
+
+func (k *KubeClient) WaitForPodsRunning(ctx context.Context, ns string, deploymentLabels map[string]string, expectedPods int32) error {
+	// block golang until all pods are running
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
+		case <-ticker.C:
+			labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
+			if err != nil {
+				log.WithError(err).Error("Failed to create label selector")
+				return fmt.Errorf("reate label selector failure: %w", err)
+			}
+			podList, err := k.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+				LabelSelector: labelSelector.String(),
+			})
+			if err != nil {
+				log.WithError(err).Error("Failed to list pods")
+				return fmt.Errorf("list pods failure: %w", err)
+			}
+			podsRunning := 0
+			for _, pod := range podList.Items {
+				if pod.Status.Phase == corev1.PodRunning {
+					podsRunning++
+				}
+			}
+
+			log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
+
+			if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
+				return nil
+			}
+		}
+	}
 }
