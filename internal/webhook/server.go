@@ -76,7 +76,6 @@ func (s *Server) processWebhookEvents(event any) error {
 func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error {
 	log.Infof("Issue Comment: action=%s", event.GetAction())
 
-	// TODO: chenge from "hono-api-dev" namespace to "hono-api-test" namespace for testing purposes
 	data, err := s.extractEventData(event, s.Options.DevNamespace)
 	if err != nil {
 		errMsg := fmt.Sprintf("failed to extract webhook event data: %v", err)
@@ -354,6 +353,10 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	}
 
 	// Deploy resources
+	var (
+		deploymentLabels map[string]string
+		expectedPods     int32
+	)
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "Namespace") {
 			continue
@@ -364,11 +367,21 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 			log.Infof("replaced image tag: %s in res: %s", data.imageTag, res)
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
-		if _, _, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace); err != nil {
+		labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace)
+		if err != nil {
 			return err
 		}
+		if strings.Contains(res, "kind: Deployment") {
+			deploymentLabels = labels
+			expectedPods = replicas
+		}
 	}
+	log.Infof("Deployment labels: %v, expected pods: %d", deploymentLabels, expectedPods)
 	log.Info("Deployment completed!")
+	// Wait for pods to be active and running
+	if err := s.KubeClient.WaitForPodsRunning(data.ctx, data.namespace, deploymentLabels, expectedPods); err != nil {
+		return err
+	}
 	return nil
 }
 
