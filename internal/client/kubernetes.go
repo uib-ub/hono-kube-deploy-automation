@@ -264,7 +264,7 @@ func getReplicas(obj any) int32 {
 
 func (k *KubeClient) WaitForPodsRunning(ctx context.Context, ns string, deploymentLabels map[string]string, expectedPods int32) error {
 	// block golang until all pods are running
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
 	for {

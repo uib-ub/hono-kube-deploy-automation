@@ -74,16 +74,17 @@ func (s *Server) processWebhookEvents(event any) error {
 }
 
 func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error {
-	log.Infof("Issue Comment: action=%s", event.GetAction())
-
-	data, err := s.extractEventData(event, s.Options.DevNamespace)
-	if err != nil {
-		errMsg := fmt.Sprintf("failed to extract webhook event data: %v", err)
-		return errors.NewInternalServerError(errMsg)
-	}
-	log.Infof("Webhook Event Data: %+v\n", *data)
+	isPullRequest := event.GetIssue().IsPullRequest()
+	commentBody := event.GetComment().GetBody()
 	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
-	if event.GetIssue().IsPullRequest() && strings.Contains(event.GetComment().GetBody(), "deploy dev") {
+	if isPullRequest && strings.Contains(commentBody, "deploy dev") {
+		log.Infof("Issue Comment: action=%s", event.GetAction())
+
+		data, err := s.extractEventData(event, s.Options.DevNamespace)
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to extract webhook event data: %v", err)
+			return errors.NewInternalServerError(errMsg)
+		}
 		// Get github repository to local source path
 		if err := s.getGithubRepo(data.ghRepoFullName, data.ghBranch); err != nil {
 			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
@@ -106,18 +107,25 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 				return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 			}
 		}
+	} else {
+		log.Infof("No action needed for issue comment event action %s, and comment body %s",
+			event.GetAction(), event.GetComment().GetBody())
 	}
+
 	return nil
 }
 
 func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
-	log.Infof("Issue Comment: action=%s\n", event.GetAction())
-	data, err := s.extractEventData(event, s.Options.TestNamespace)
-	if err != nil {
-		return errors.NewInternalServerError(fmt.Sprintf("%v", err))
-	}
+	baseRef := event.GetPullRequest().GetBase().GetRef()
+	action := event.GetAction()
+	isMerged := event.GetPullRequest().GetMerged()
 	// Check if the pull request was merged to the master branch
-	if data.ghBranch == "main" && event.GetAction() == "closed" && event.GetPullRequest().GetMerged() {
+	if baseRef == "main" && action == "closed" && isMerged {
+		log.Infof("Issue Comment: action=%s\n", event.GetAction())
+		data, err := s.extractEventData(event, s.Options.TestNamespace)
+		if err != nil {
+			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
+		}
 		log.Infof("Pull request merged to %s branch", data.ghBranch)
 		// Get pull request label and check if it is "deploy-api-test"
 		for _, label := range event.GetPullRequest().Labels {
@@ -157,12 +165,7 @@ func (s *Server) extractEventData(event any, namespace string) (*eventData, erro
 	switch event := event.(type) {
 	case *github.IssueCommentEvent:
 		// TODO: Debug
-		log.Debugf("rep org login: %s, org name: %s, owner name: %s, owner login: %s\n",
-			event.GetRepo().GetOrganization().GetLogin(),
-			event.GetRepo().GetOrganization().GetName(),
-			event.GetRepo().GetOwner().GetName(),
-			event.GetRepo().GetOwner().GetLogin(),
-		)
+		log.Debugf("owner login: %s\n", event.GetRepo().GetOwner().GetLogin())
 		data.ghLoginOwner = event.GetRepo().GetOwner().GetLogin()
 		data.ghRepoFullName = event.GetRepo().GetFullName()
 		data.ghRepoName = event.GetRepo().GetName()

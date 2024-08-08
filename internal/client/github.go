@@ -187,7 +187,7 @@ func (g *GithubClient) handleWorkflowConclusion(WFFile, conclusion string) error
 		log.Infof("Workflow %s completed successfully", WFFile)
 		// Do not return here, let the caller decide
 	case "failure":
-		return fmt.Errorf("workflow %s failed", WFFile)
+		return fmt.Errorf("workflow %s failed with conclusion: %s", WFFile, conclusion)
 	case "neutral", "cancelled", "timed_out", "action_required":
 		return fmt.Errorf("workflow %s ended with conclusion: %s", WFFile, conclusion)
 	default:
