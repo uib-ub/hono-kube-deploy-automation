@@ -78,7 +78,7 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 	commentBody := event.GetComment().GetBody()
 	// Check if the comment is on a pull request and contains the deploy command "deploy dev"
 	if isPullRequest && strings.Contains(commentBody, "deploy dev") {
-		log.Infof("Issue Comment: action=%s", event.GetAction())
+		log.Infof("Issue Comment: action=%s, comment=%s", event.GetAction(), commentBody)
 
 		data, err := s.extractEventData(event, s.Options.DevNamespace)
 		if err != nil {
@@ -107,9 +107,10 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 				return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 			}
 		}
+	} else if strings.Contains(commentBody, "Vercel for Git") {
+		log.Infof("No action needed for issue comment related to Vercel for Git.")
 	} else {
-		log.Infof("No action needed for issue comment event action %s, and comment body %s",
-			event.GetAction(), event.GetComment().GetBody())
+		log.Infof("No action needed for issue comment: %s", commentBody)
 	}
 
 	return nil
@@ -164,7 +165,7 @@ func (s *Server) extractEventData(event any, namespace string) (*eventData, erro
 	}
 	switch event := event.(type) {
 	case *github.IssueCommentEvent:
-		// TODO: Debug
+		// Debug
 		log.Debugf("owner login: %s\n", event.GetRepo().GetOwner().GetLogin())
 		data.ghLoginOwner = event.GetRepo().GetOwner().GetLogin()
 		data.ghRepoFullName = event.GetRepo().GetFullName()
