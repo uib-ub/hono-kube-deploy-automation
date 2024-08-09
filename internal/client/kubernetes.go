@@ -28,10 +28,14 @@ type ConfigMapType = *corev1.ConfigMap
 type ServiceType = *corev1.Service
 type IngressType = *networkingv1.Ingress
 
+// KubeClient wraps the Kubernetes clientset and provides methods to
+// handle Kubernetes resources.
 type KubeClient struct {
 	*kubernetes.Clientset
 }
 
+// NewKubernetesClient creates a new KubeClient using the provided kubeConfig.
+// If kubeConfig is empty, it attempts to create an in-cluster configuration.
 func NewKubernetesClient(kubeConfig string) (*KubeClient, error) {
 	config, err := buildConfig(kubeConfig)
 	if err != nil {
@@ -44,15 +48,18 @@ func NewKubernetesClient(kubeConfig string) (*KubeClient, error) {
 	return &KubeClient{client}, nil
 }
 
+// buildConfig constructs a Kubernetes client configuration based on the provided kubeConfig.
+// If kubeConfig is empty, it returns an in-cluster configuration.
 func buildConfig(kubeConfig string) (*rest.Config, error) {
 	if kubeConfig == "" {
-		// inside kubernetes cluster
+		// Use in-cluster config if no kubeconfig fie is provided
 		return rest.InClusterConfig()
 	}
-	// outside kubernetes cluster
+	// Use provided kubeconfig file for outside the Kubernetes cluster
 	return clientcmd.BuildConfigFromFlags("", kubeConfig)
 }
 
+// Deploy deploys or updates a Kubernetes resource in the specified namespace.
 func (k *KubeClient) Deploy(
 	ctx context.Context,
 	resource []byte,
@@ -63,37 +70,42 @@ func (k *KubeClient) Deploy(
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 
+	// Decode the Kubernetes resource from the provided byte slice.
 	obj, err := k.decodeResource(resource)
 	if err != nil {
 		return nil, 0, err
 	}
 	log.Infof("Deploy resource type: %v", reflect.TypeOf(obj))
 
+	// Check if the resource already exists.
 	_, err = k.getResource(ctx, ns, obj)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, 0, fmt.Errorf("failed to get Kubernetes resource: %w", err)
 	}
 
+	// If the resource doesn't exist, create it; otherwise, update it.
 	if errors.IsNotFound(err) {
-		// create deployment of the resource
 		return k.handleDeployResource(ctx, ns, obj, true)
 	}
-	// update deployment of the resource
 	return k.handleDeployResource(ctx, ns, obj, false)
 }
 
+// Delete removes a Kubernetes resource from the specified namespace.
 func (k *KubeClient) Delete(ctx context.Context, resource []byte, ns string) error {
 	// Create a sub-context with a specific timeout to prevent
 	// hanging indefinitely, which can lead to deadlocks or resource leaks
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 
+	// Decode the Kubernetes resource from the provided byte slice.
 	obj, err := k.decodeResource(resource)
 	if err != nil {
 		return err
 	}
 	log.Infof("Delete resource type: %v", reflect.TypeOf(obj))
 	_, err = k.getResource(ctx, ns, obj)
+
+	// Check if the resource exists before attempting to delete it.
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to get Kubernetes resource: %w", err)
 	}
@@ -102,17 +114,20 @@ func (k *KubeClient) Delete(ctx context.Context, resource []byte, ns string) err
 		return nil
 	}
 
+	// If the resource exists, delete it.
 	return k.handleDeleteResource(ctx, ns, obj)
 }
 
+// decodeResource decodes a Kubernetes resource from a byte slice.
 func (k *KubeClient) decodeResource(resource []byte) (metav1.Object, error) {
-	// Decode the resource
+	// Decode the resource into a Kubernetes API object.
 	obj, gvk, err := scheme.Codecs.UniversalDeserializer().Decode(resource, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode resource: %w", err)
 	}
 	log.Debugf("Decoded resource type: %v, kind: %v", reflect.TypeOf(obj), gvk.Kind)
-	// Cast object to metav1.Object
+
+	// Cast the decoded object to a metav1.Object, which represents a Kubernetes resource.
 	objMeta, ok := obj.(metav1.Object)
 	if !ok {
 		return nil, fmt.Errorf("decoded resource object is not a Kubernetes API object")
@@ -122,6 +137,7 @@ func (k *KubeClient) decodeResource(resource []byte) (metav1.Object, error) {
 	return objMeta, nil
 }
 
+// getResource retrieves a Kubernetes resource by its type and namespace.
 func (k *KubeClient) getResource(
 	ctx context.Context,
 	ns string,
@@ -143,6 +159,7 @@ func (k *KubeClient) getResource(
 	}
 }
 
+// handleDeployResource handles the creation or update of a Kubernetes resource.
 func (k *KubeClient) handleDeployResource(
 	ctx context.Context,
 	ns string,
@@ -185,6 +202,7 @@ func (k *KubeClient) handleDeployResource(
 	}
 }
 
+// handleDeleteResource handles the deletion of a Kubernetes resource.
 func (k *KubeClient) handleDeleteResource(
 	ctx context.Context,
 	ns string,
@@ -206,7 +224,7 @@ func (k *KubeClient) handleDeleteResource(
 	}
 }
 
-// Type alias for the Kubernetes resource types.
+// Type alias for the Kubernetes resource types to simplify the function signatures.
 type KubernetesResource interface {
 	DeploymentType | NamespaceType | ConfigMapType | ServiceType | IngressType
 }
@@ -215,9 +233,10 @@ type KubernetesResource interface {
 type CreateFunc[T any] func(context.Context, T, metav1.CreateOptions) (T, error)
 type UpdateFunc[T any] func(context.Context, T, metav1.UpdateOptions) (T, error)
 
+// handleDeployResourceOperation is a generic function that handles the creation or updating
+// of a Kubernetes resource. The type parameter T represents the specific Kubernetes resource type.
 func handleDeployResourceOperation[
-	// T DeploymentType | NamespaceType | ConfigMapType | ServiceType | IngressType,
-	T KubernetesResource,
+	T KubernetesResource, // T must be one of the Kubernetes resource types being handled.
 ](
 	create bool,
 	obj T,
@@ -244,6 +263,8 @@ func handleDeployResourceOperation[
 	return getLabels(obj), getReplicas(obj), nil
 }
 
+// getLabels is a generic function that retrieves the labels from a Kubernetes resource object.
+// It accepts any object type that implements the metav1.Object interface.
 func getLabels(obj any) map[string]string {
 	switch obj := obj.(type) {
 	case metav1.Object:
@@ -252,6 +273,8 @@ func getLabels(obj any) map[string]string {
 	return nil
 }
 
+// getReplicas is a generic function that retrieves the replica count from a Kubernetes Deployment object.
+// It accepts any object type but only returns the replica count for DeploymentType.
 func getReplicas(obj any) int32 {
 	switch obj := obj.(type) {
 	case DeploymentType:
@@ -262,16 +285,24 @@ func getReplicas(obj any) int32 {
 	return 0
 }
 
-func (k *KubeClient) WaitForPodsRunning(ctx context.Context, ns string, deploymentLabels map[string]string, expectedPods int32) error {
-	// block golang until all pods are running
+// WaitForPodsRunning waits until all pods associated with a deployment are running.
+func (k *KubeClient) WaitForPodsRunning(
+	ctx context.Context,
+	ns string,
+	deploymentLabels map[string]string,
+	expectedPods int32,
+) error {
+	// Create a ticker that triggers every 60 seconds.
 	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
+	defer ticker.Stop() // Ensure the ticker is stopped when we're done.
 
 	for {
 		select {
 		case <-ctx.Done():
+			// If the context is cancelled or times out, return an error.
 			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		case <-ticker.C:
+			// When the ticker ticks, perform the pod status check.
 			labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
 			if err != nil {
 				log.WithError(err).Error("Failed to create label selector")
@@ -284,6 +315,7 @@ func (k *KubeClient) WaitForPodsRunning(ctx context.Context, ns string, deployme
 				log.WithError(err).Error("Failed to list pods")
 				return fmt.Errorf("list pods failure: %w", err)
 			}
+			// Count how many of the listed pods are in the "Running" phase.
 			podsRunning := 0
 			for _, pod := range podList.Items {
 				if pod.Status.Phase == corev1.PodRunning {
@@ -292,7 +324,8 @@ func (k *KubeClient) WaitForPodsRunning(ctx context.Context, ns string, deployme
 			}
 
 			log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
-
+			// Check if the number of running pods matches the expected count.
+			// If all expected pods are running, return successfully.
 			if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
 				return nil
 			}

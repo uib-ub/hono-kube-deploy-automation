@@ -15,10 +15,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// GithubClient wraps the github.Client and adds custom methods.
 type GithubClient struct {
 	*github.Client // Embedding the github.Client struct
 }
 
+// NewGithubClient returns a new GithubClient instance with the optional authentication credentials
 func NewGithubClient(githubToken string) *GithubClient {
 	httpClient := &http.Client{
 		Timeout: time.Second * 30,
@@ -30,6 +32,7 @@ func NewGithubClient(githubToken string) *GithubClient {
 	return &GithubClient{Client: client}
 }
 
+// GetWebhookEvent validates and parses a GitHub webhook event.
 func (g *GithubClient) GetWebhookEvent(req *http.Request, WebhookSecret string) (any, error) {
 	payload, err := github.ValidatePayload(req, []byte(WebhookSecret))
 	if err != nil {
@@ -45,6 +48,7 @@ func (g *GithubClient) GetWebhookEvent(req *http.Request, WebhookSecret string) 
 	return event, nil
 }
 
+// GetPullRequest retrieves a pull request by owner, repo, and issue number.
 func (g *GithubClient) GetPullRequest(
 	ctx context.Context,
 	owner,
@@ -58,6 +62,7 @@ func (g *GithubClient) GetPullRequest(
 	return pr, nil
 }
 
+// DeletePackageImage deletes a specific version of a package image by tag on Github.
 func (g *GithubClient) DeletePackageImage(
 	ctx context.Context,
 	owner,
@@ -100,6 +105,7 @@ func (g *GithubClient) DeletePackageImage(
 	return fmt.Errorf("package %s with version tag %s not found", encodedPackageName, tag)
 }
 
+// TriggerWorkFlow triggers a GitHub Actions workflow for a repository.
 func (g *GithubClient) TriggerWorkFlow(
 	ctx context.Context,
 	owner,
@@ -129,6 +135,7 @@ func (g *GithubClient) TriggerWorkFlow(
 	return nil
 }
 
+// waitForWorkflowCompletion waits for the triggered workflow to complete.
 func (g *GithubClient) waitForWorkflowCompletion(
 	ctx context.Context,
 	owner,
@@ -162,8 +169,7 @@ func (g *GithubClient) waitForWorkflowCompletion(
 		} else {
 			log.Infof("Workflow %s is still %s", WFFile, status)
 		}
-		// Continue to the final check if the workflow is still running
-		// Check if the maximum duration has been reached
+		// Check if the maximum duration has been reached.
 		if time.Since(startTime) >= maxDuration {
 			break
 		}
@@ -181,6 +187,7 @@ func (g *GithubClient) waitForWorkflowCompletion(
 	return g.workflowFinalCheck(ctx, owner, repo, WFFile, branch)
 }
 
+// handleWorkflowConclusion handles the conclusion of the workflow.
 func (g *GithubClient) handleWorkflowConclusion(WFFile, conclusion string) error {
 	switch conclusion {
 	case "success":
@@ -196,6 +203,7 @@ func (g *GithubClient) handleWorkflowConclusion(WFFile, conclusion string) error
 	return nil
 }
 
+// workflowFinalCheck performs a final check on the workflow status and conclusion.
 func (g *GithubClient) workflowFinalCheck(
 	ctx context.Context,
 	owner,
@@ -224,6 +232,7 @@ func (g *GithubClient) workflowFinalCheck(
 	return fmt.Errorf("timed out waiting for GitHub workflow completion")
 }
 
+// getLatestWorkflowRunStatus retrieves the status and conclusion of the latest workflow run.
 func (g *GithubClient) getLatestWorkflowRunStatus(
 	ctx context.Context,
 	owner,
@@ -248,6 +257,7 @@ func (g *GithubClient) getLatestWorkflowRunStatus(
 	return runs.WorkflowRuns[0].GetStatus(), runs.WorkflowRuns[0].GetConclusion(), nil
 }
 
+// DownloadGithubRepository clones or pulls a GitHub repository to a local path.
 func (g *GithubClient) DownloadGithubRepository(
 	localRepoPath,
 	repoFullName,
@@ -291,6 +301,7 @@ func (g *GithubClient) DownloadGithubRepository(
 	return nil
 }
 
+// runCmd runs a shell command with arguments.
 func (g *GithubClient) runCmd(command string, args ...string) error {
 	cmd := exec.Command(command, args...)
 	if err := cmd.Run(); err != nil {
@@ -299,6 +310,7 @@ func (g *GithubClient) runCmd(command string, args ...string) error {
 	return nil
 }
 
+// DeleteLocalRepository deletes the local repository directory if it exists.
 func (g *GithubClient) DeleteLocalRepository(localRepoPath string) error {
 	// Remove the existing local source directory if it exists
 	if _, err := os.Stat(localRepoPath); !os.IsNotExist(err) {
