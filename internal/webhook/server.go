@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-github/v63/github"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/errors"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/util"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -108,20 +109,24 @@ func (s *Server) handleIssueCommentEvent(event *github.IssueCommentEvent) error 
 		if event.GetAction() == "deleted" {
 			// Clean up the deployment/image if the comment was deleted.
 			log.Info("PR comment 'deploy dev' deleted!")
+			util.NotifyLog("PR comment 'deploy dev' deleted!")
 			if err := s.issueCommentEventCleanup(data, &kubeResources); err != nil {
 				return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 			}
 		} else {
 			// Deploy or update the resources if the comment was created or edited.
 			log.Info("PR comment 'deploy dev' found!")
+			util.NotifyLog("PR comment 'deploy dev' found!")
 			if err := s.issueCommentEventDeploy(data, &kubeResources); err != nil {
 				return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 			}
 		}
 	} else if strings.Contains(commentBody, "Vercel for Git") {
 		log.Infof("No action needed for issue comment related to Vercel for Git.")
+		util.NotifyLog("No action needed for issue comment related to Vercel for Git.")
 	} else {
 		log.Infof("No action needed for issue comment: %s", commentBody)
+		util.NotifyLog("No action needed for issue comment: %s", commentBody)
 	}
 
 	return nil
@@ -142,6 +147,7 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 			return errors.NewInternalServerError(fmt.Sprintf("%v", err))
 		}
 		log.Infof("Pull request merged to %s branch", data.ghBranch)
+		util.NotifyLog("Pull request merged to %s branch", data.ghBranch)
 		// Get pull request label and check if it is "deploy-api-test"
 		for _, label := range event.GetPullRequest().Labels {
 			if label.GetName() == "deploy-api-test" {
@@ -241,6 +247,7 @@ func (s *Server) handleKustomization(ns string) ([]string, error) {
 func (s *Server) issueCommentEventDeploy(data *eventData, kubeResources *[]string) error {
 	// Build and push the container image.
 	log.Infof("Build and push the container image for %s enviroment...", data.namespace)
+	util.NotifyLog("Build and push the container image for %s enviroment...", data.namespace)
 	if err := s.handleContainerization(
 		"deploy",
 		data.ghLoginOwner,
@@ -250,8 +257,10 @@ func (s *Server) issueCommentEventDeploy(data *eventData, kubeResources *[]strin
 		return err
 	}
 	log.Info("Build and push container image finished!")
+	util.NotifyLog("Build and push container image finished!")
 	// Deploy the resources to Kubernetes.
 	log.Infof("Deploy the resources on Kubernetes for %s enviroment...", data.namespace)
+	util.NotifyLog("Deploy the resources on Kubernetes for %s enviroment...", data.namespace)
 	return s.deployKubeResources(data, kubeResources)
 }
 
@@ -259,13 +268,16 @@ func (s *Server) issueCommentEventDeploy(data *eventData, kubeResources *[]strin
 func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]string) error {
 	// Delete the deployment on Kubernetes.
 	log.Infof("Delete the deployment on Kubernetes for %s enviroment...", data.namespace)
+	util.NotifyLog("Delete the deployment on Kubernetes for %s enviroment...", data.namespace)
 	if err := s.cleanupKubeResoureces(data, kubeResources); err != nil {
 		return err
 	}
 	log.Infof("Deleting the deployment on Kubernetes for %s enviroment is finished!", data.namespace)
+	util.NotifyLog("Deleting the deployment on Kubernetes for %s enviroment is finished!", data.namespace)
 
 	// Delete the container image and repository.
 	log.Infof("Delete the container image and repository for %s enviroment...", data.namespace)
+	util.NotifyLog("Delete the container image and repository for %s enviroment...", data.namespace)
 	if err := s.handleContainerization(
 		"delete",
 		data.ghLoginOwner,
@@ -286,6 +298,7 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 func (s *Server) pullRequestEventDeploy(data *eventData, kubeResources *[]string) error {
 	// Build and push the container image.
 	log.Infof("Build and push the container image for %s enviroment...", data.namespace)
+	util.NotifyLog("Build and push the container image for %s enviroment...", data.namespace)
 	if err := s.handleContainerization(
 		"deploy",
 		data.ghLoginOwner,
@@ -295,9 +308,11 @@ func (s *Server) pullRequestEventDeploy(data *eventData, kubeResources *[]string
 		return err
 	}
 	log.Info("Build and push container image finished!")
+	util.NotifyLog("Build and push container image finished!")
 
 	// Deploy the resources to Kubernetes.
 	log.Infof("Deploy the resources on Kubernetes for %s enviroment...", data.namespace)
+	util.NotifyLog("Deploy the resources on Kubernetes for %s enviroment...", data.namespace)
 	return s.deployKubeResources(data, kubeResources)
 }
 
@@ -305,6 +320,7 @@ func (s *Server) pullRequestEventDeploy(data *eventData, kubeResources *[]string
 func (s *Server) pullRequestEventCleanup(data *eventData) error {
 	// Delete the container image.
 	log.Infof("Delete container image for %s enviroment...", data.namespace)
+	util.NotifyLog("Delete container image for %s enviroment...", data.namespace)
 	if err := s.handleContainerization(
 		"delete",
 		data.ghLoginOwner,
@@ -315,6 +331,8 @@ func (s *Server) pullRequestEventCleanup(data *eventData) error {
 	}
 
 	// Clean up the local source repository.
+	log.Infof("Clean up the local source repository for %s enviroment...", data.namespace)
+	util.NotifyLog("Clean up the local source repository for %s enviroment...", data.namespace)
 	return s.cleanupLocalRepository()
 }
 
@@ -353,6 +371,7 @@ func (s *Server) cleanupImageOnGithub(
 ) error {
 	packageType := "container"
 	log.Infof("Deleting the package image %s:%s on Github...", imageName, imageTag)
+	util.NotifyLog("Deleting the package image %s:%s on Github...", imageName, imageTag)
 	return s.GithubClient.DeletePackageImage(ctx, ghLoginOwner, packageType, imageName, imageTag)
 }
 
@@ -410,6 +429,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	}
 	log.Infof("Deployment labels: %v, expected pods: %d", deploymentLabels, expectedPods)
 	log.Info("Deployment completed!")
+	util.NotifyLog("Deployment completed!")
 
 	// Wait for the pods to be active and running.
 	if err := s.KubeClient.WaitForPodsRunning(data.ctx, data.namespace, deploymentLabels, expectedPods); err != nil {

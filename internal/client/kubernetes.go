@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/util"
 )
 
 // Define type aliases for Kubernetes resources
@@ -324,6 +325,7 @@ func (k *KubeClient) WaitForPodsRunning(
 			}
 
 			log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
+			util.NotifyLog("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
 			// Check if the number of running pods matches the expected count.
 			// If all expected pods are running, return successfully.
 			if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
