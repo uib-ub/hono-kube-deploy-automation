@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/errors"
+	"github.com/uib-ub/hono-kube-deploy-automation/internal/util"
 )
 
 // WebhookHandler returns an HTTP handler function that processes GitHub webhook events.
@@ -31,7 +32,7 @@ func WebhookHandler(s *Server) http.HandlerFunc {
 			err := s.processWebhookEvents(e)
 			if err != nil {
 				log.Errorf("process webhook event failed: %v", err)
-				handleError(w, err)
+				util.NotifyError(err)
 			} else {
 				log.Info("Webhook processed successfully!")
 			}
@@ -45,4 +46,5 @@ func handleError(w http.ResponseWriter, err error) {
 	statusCode, errMsg := errors.HandleHTTPError(err)
 	http.Error(w, errMsg, statusCode)
 	log.WithFields(log.Fields{"error": err, "status": statusCode}).Error(errMsg)
+	util.NotifyError(err)
 }

@@ -13,6 +13,7 @@ import (
 
 // Config holds the configuration for the application
 type Config struct {
+	RollbarToken  string           // Rollbar access token
 	GitHubToken   string           // the Github personal access token
 	WebhookSecret string           // the webhook secret key
 	KubeConfig    string           // the path to the Kubernetes configuration file
@@ -80,8 +81,8 @@ func NewConfig() (*Config, error) {
 	}
 
 	// Validate that required configuration fields are set.
-	if config.WebhookSecret == "" || config.GitHubToken == "" {
-		return nil, fmt.Errorf("missing required configuration")
+	if config.WebhookSecret == "" || config.GitHubToken == "" || config.RollbarToken == "" {
+		return nil, fmt.Errorf("missing required configuration secret or token")
 	}
 	// Resolve the local repository path.
 	localRepoDir, err := getLocalRepoPath(config.Github.LocalRepo)
@@ -97,6 +98,9 @@ func NewConfig() (*Config, error) {
 // bindEnvironmentVariables binds environment variables to specific configuration fields.
 // This allows the application to override config file settings with environment variables.
 func bindEnvironmentVariables() error {
+	if err := viper.BindEnv("RollbarToken", "ROLLBAR_TOKEN"); err != nil {
+		return fmt.Errorf("error binding ROLLBAR_TOKEN: %w", err)
+	}
 	if err := viper.BindEnv("GitHubToken", "GITHUB_TOKEN"); err != nil {
 		return fmt.Errorf("error binding GITHUB_TOKEN: %w", err)
 	}
