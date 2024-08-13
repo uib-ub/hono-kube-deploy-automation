@@ -22,6 +22,7 @@ type Options struct {
 	KubeResDir    string // Path to the Kubernetes resource directory.
 	WFPrefix      string // Prefix used for workflow files.
 	LocalRepoDir  string // Path to the local Git repository.
+	PackageType   string // Type of package on GitHub
 	ImageSuffix   string // Suffix to append to container image names.
 	DevNamespace  string // Namespace for the dev environment on kubernetes.
 	TestNamespace string // Namespace for the test environment on kubernetes.
@@ -276,20 +277,6 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 		close(errChan)
 	}()
 
-	// Delete the deployment on Kubernetes concurrently.
-	wg.Add(1)
-	go func(d *eventData, r *[]string) {
-		defer wg.Done()
-		log.Infof("Concurrently delete the deployment on Kubernetes for %s environment ...", d.namespace)
-		util.NotifyLog("Concurrently delete the deployment on Kubernetes for %s environment ...", d.namespace)
-		if err := s.cleanupKubeResoureces(d, r); err != nil {
-			errChan <- err
-			return
-		}
-		log.Infof("Concurrently deleting the deployment on Kubernetes for %s environment is finished!", d.namespace)
-		util.NotifyLog("Concurrently Deleting the deployment on Kubernetes for %s environment is finished!", d.namespace)
-	}(data, kubeResources)
-
 	// Delete the container image and repository concurrently.
 	wg.Add(1)
 	go func(d *eventData) {
@@ -307,45 +294,20 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 		}
 	}(data)
 
+	// Delete the deployment on Kubernetes concurrently.
+	wg.Add(1)
+	go s.cleanupKubeResoureces(&wg, errChan, data, kubeResources)
+
 	// Clean up the local source repository concurrently.
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		log.Info("Concurrently clean up the local source repository...")
-		util.NotifyLog("Concurrently clean up the local source repository...")
-		if err := s.cleanupLocalRepository(); err != nil {
-			errChan <- err
-			return
-		}
-	}()
+	go s.cleanupLocalRepository(&wg, errChan)
 
 	// Clean up the container image on GitHub packages concurrently.
 	wg.Add(1)
-	go func(d *eventData) {
-		defer wg.Done()
-		log.Infof("Concurrently delete the package image on Github for %s environment...", d.namespace)
-		util.NotifyLog("Concurrently delete the package image on Github for %s environment...", d.namespace)
-		if err := s.cleanupImageOnGithub(d.ctx, d.ghLoginOwner, d.imageName, d.imageTag); err != nil {
-			errChan <- err
-			return
-		}
-	}(data)
+	go s.cleanupImageOnGithub(&wg, errChan, data)
 
-	// check for errors
-	var errs []error
-	for err := range errChan {
-		if err != nil {
-			log.Error("Error occurred during cleanup: ", err)
-			util.NotifyError("Error occurred during cleanup: ", err)
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred during cleanup: %v", errs)
-	}
-
-	return nil
+	// collect errors occurring during cleanup.
+	return s.collectCleanupErrors(errChan)
 }
 
 // pullRequestEventDeploy handles the deployment of resources in response to a pull request event.
@@ -372,22 +334,38 @@ func (s *Server) pullRequestEventDeploy(data *eventData, kubeResources *[]string
 
 // pullRequestEventCleanup handles the cleanup of resources after a pull request event.
 func (s *Server) pullRequestEventCleanup(data *eventData) error {
-	// Delete the container image.
-	log.Infof("Delete container image for %s environment...", data.namespace)
-	util.NotifyLog("Delete container image for %s environment...", data.namespace)
-	if err := s.handleContainerization(
-		"delete",
-		data.ghLoginOwner,
-		data.imageName,
-		data.imageTag,
-	); err != nil {
-		return err
-	}
+	var wg sync.WaitGroup
+	errChan := make(chan error) // Unbuffered channel to hold potential errors from each goroutine
+
+	// Goroutine to handle errors and close the channel after all goroutines are done
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	// Delete the container image and repository concurrently.
+	wg.Add(1)
+	go func(d *eventData) {
+		defer wg.Done()
+		log.Infof("Concurrently delete the container image and repository for %s environment...", d.namespace)
+		util.NotifyLog("Concurrently delete the container image and repository for %s environment...", d.namespace)
+		if err := s.handleContainerization(
+			"delete",
+			d.ghLoginOwner,
+			d.imageName,
+			d.imageTag,
+		); err != nil {
+			errChan <- err
+			return
+		}
+	}(data)
 
 	// Clean up the local source repository.
-	log.Infof("Clean up the local source repository for %s environment...", data.namespace)
-	util.NotifyLog("Clean up the local source repository for %s environment...", data.namespace)
-	return s.cleanupLocalRepository()
+	wg.Add(1)
+	go s.cleanupLocalRepository(&wg, errChan)
+
+	// collect errors occurring during cleanup.
+	return s.collectCleanupErrors(errChan)
 }
 
 // handleContainerization handles the build/push or deletion of container images based on the specified action.
@@ -409,24 +387,6 @@ func (s *Server) handleContainerization(action, ghLoginOwner, imageName, imageTa
 		return s.DockerClient.ImagePush(ghLoginOwner, imageName, imageTag)
 	}
 	return nil
-}
-
-// cleanupLocalRepository deletes the local Git repository used for the deployment.
-func (s *Server) cleanupLocalRepository() error {
-	return s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoDir)
-}
-
-// cleanupImageOnGithub deletes the specified container image from GitHub packages.
-func (s *Server) cleanupImageOnGithub(
-	ctx context.Context,
-	ghLoginOwner,
-	imageName,
-	imageTag string,
-) error {
-	packageType := "container"
-	log.Infof("Deleting the package image %s:%s on Github...", imageName, imageTag)
-	util.NotifyLog("Deleting the package image %s:%s on Github...", imageName, imageTag)
-	return s.GithubClient.DeletePackageImage(ctx, ghLoginOwner, packageType, imageName, imageTag)
 }
 
 // deployKubeResources deploys Kubernetes resources extracted from the Kustomize build.
@@ -493,16 +453,56 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 }
 
 // cleanupKubeResoureces deletes the Kubernetes resources extracted from the Kustomize build.
-func (s *Server) cleanupKubeResoureces(data *eventData, kubeResources *[]string) error {
+func (s *Server) cleanupKubeResoureces(wg *sync.WaitGroup, errChan chan<- error, data *eventData, kubeResources *[]string) {
+	defer wg.Done()
+	log.Infof("Concurrently delete the deployment on Kubernetes for %s environment ...", data.namespace)
+	util.NotifyLog("Concurrently delete the deployment on Kubernetes for %s environment ...", data.namespace)
+
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "kind: Deployment") {
 			res = strings.Replace(res, "latest", data.imageTag, -1)
 		}
 		log.Debugf("Delete resource:\n%s\n", res)
 		if err := s.KubeClient.Delete(data.ctx, []byte(res), data.namespace); err != nil {
-			return err
+			errChan <- err
+			return
 		}
 	}
 	log.Info("Cleanup completed!")
+}
+
+// cleanupLocalRepository deletes the local Git repository used for the deployment.
+func (s *Server) cleanupLocalRepository(wg *sync.WaitGroup, errChan chan<- error) {
+	defer wg.Done()
+	log.Info("Concurrently clean up the local source repository...")
+	util.NotifyLog("Concurrently clean up the local source repository...")
+	if err := s.GithubClient.DeleteLocalRepository(s.Options.LocalRepoDir); err != nil {
+		errChan <- err
+		return
+	}
+}
+
+// cleanupImageOnGithub deletes the specified container image from GitHub packages.
+func (s *Server) cleanupImageOnGithub(wg *sync.WaitGroup, errChan chan<- error, data *eventData) {
+	defer wg.Done()
+	log.Infof("Concurrently deleting the package image %s:%s on Github for %s environment ...", data.imageName, data.imageTag, data.namespace)
+	util.NotifyLog("Concurrently Deleting the package image %s:%s on Github for %s environment ...", data.imageName, data.imageTag, data.namespace)
+	if err := s.GithubClient.DeletePackageImage(data.ctx, data.ghLoginOwner, s.Options.PackageType, data.imageName, data.imageTag); err != nil {
+		errChan <- err
+		return
+	}
+}
+
+// collectCleanupErrors collects errors from the error channel after cleanup opertaions and returns a single error.
+func (s *Server) collectCleanupErrors(errChan <-chan error) error {
+	var errs []error
+	for err := range errChan {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("errors occurred during cleanup: %v", errs)
+	}
 	return nil
 }

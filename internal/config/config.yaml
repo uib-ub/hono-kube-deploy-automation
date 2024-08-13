@@ -1,6 +1,7 @@
 github:
   workflowPrefix: "deploy-kube-secrets"
   localRepo: "app"
+  packageType: "container"
 
 kubernetes:
   resource: "microk8s-hono-api"
