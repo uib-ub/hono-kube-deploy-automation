@@ -3,10 +3,12 @@ package webhook
 import (
 	"context"
 	"fmt"
+	"math"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/go-github/v63/github"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
@@ -296,7 +298,7 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 
 	// Delete the deployment on Kubernetes concurrently.
 	wg.Add(1)
-	go s.cleanupKubeResoureces(&wg, errChan, data, kubeResources)
+	go s.cleanupKubeResources(&wg, errChan, data, kubeResources)
 
 	// Clean up the local source repository concurrently.
 	wg.Add(1)
@@ -395,12 +397,19 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "Namespace") {
 			log.Debugf("found Namespace file:\n%s\n", res)
-			if _, _, err := s.KubeClient.Deploy(
-				data.ctx,
-				[]byte(res),
-				data.namespace,
-			); err != nil {
-				return fmt.Errorf("failed to deploy namespace: %v", err)
+			err := s.retryKubeResources(3, 10*time.Second, func() error {
+				_, _, err := s.KubeClient.Deploy(
+					data.ctx,
+					[]byte(res),
+					data.namespace,
+				)
+				if err != nil {
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				return err
 			}
 			break
 		}
@@ -432,13 +441,21 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 			log.Infof("replaced image tag: %s in res: %s", data.imageTag, res)
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
-		labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace)
+
+		err := s.retryKubeResources(3, 10*time.Second, func() error {
+			labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace)
+			if err != nil {
+				return err
+			}
+			if strings.Contains(res, "kind: Deployment") {
+				deploymentLabels = labels
+				expectedPods = replicas
+			}
+			return nil
+		})
+
 		if err != nil {
-			return err
-		}
-		if strings.Contains(res, "kind: Deployment") {
-			deploymentLabels = labels
-			expectedPods = replicas
+			return fmt.Errorf("failed to deploy resources after retries: %v", err)
 		}
 	}
 	log.Infof("Deployment labels: %v, expected pods: %d", deploymentLabels, expectedPods)
@@ -453,7 +470,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 }
 
 // cleanupKubeResoureces deletes the Kubernetes resources extracted from the Kustomize build.
-func (s *Server) cleanupKubeResoureces(wg *sync.WaitGroup, errChan chan<- error, data *eventData, kubeResources *[]string) {
+func (s *Server) cleanupKubeResources(wg *sync.WaitGroup, errChan chan<- error, data *eventData, kubeResources *[]string) {
 	defer wg.Done()
 	log.Infof("Concurrently delete the deployment on Kubernetes for %s environment ...", data.namespace)
 	util.NotifyLog("Concurrently delete the deployment on Kubernetes for %s environment ...", data.namespace)
@@ -463,7 +480,10 @@ func (s *Server) cleanupKubeResoureces(wg *sync.WaitGroup, errChan chan<- error,
 			res = strings.Replace(res, "latest", data.imageTag, -1)
 		}
 		log.Debugf("Delete resource:\n%s\n", res)
-		if err := s.KubeClient.Delete(data.ctx, []byte(res), data.namespace); err != nil {
+		err := s.retryKubeResources(3, 5*time.Second, func() error {
+			return s.KubeClient.Delete(data.ctx, []byte(res), data.namespace)
+		})
+		if err != nil {
 			errChan <- err
 			return
 		}
@@ -505,4 +525,37 @@ func (s *Server) collectCleanupErrors(errChan <-chan error) error {
 		return fmt.Errorf("errors occurred during cleanup: %v", errs)
 	}
 	return nil
+}
+
+func (s *Server) retryKubeResources(attempts int, initialSleep time.Duration, kubeFunc func() error) error {
+	var err error
+	sleep := initialSleep
+
+	for i := 0; i < attempts; i++ {
+		// Run the kubeFunc
+		err = kubeFunc()
+		if err == nil {
+			return nil // Success
+		}
+
+		if i >= (attempts - 1) {
+			break // Stop if the last attempt has been reached
+		}
+
+		log.Warnf("Attempt %d failed, retrying in %v: %v", i+1, sleep, err)
+		util.NotifyWarning("Retry attempt %d failed: %v", i+1, err)
+
+		// Skip sleep if it's the last iteration
+		if i < attempts-1 {
+			// Create a timer for the current sleep duration
+			timer := time.NewTimer(sleep)
+			<-timer.C // Proceed to the next iteration after the timer expires
+			// Double the sleep duration, with a max of 30 seconds
+			sleep = time.Duration(math.Min(float64(sleep)*2, float64(30*time.Second)))
+		}
+	}
+
+	finalErr := fmt.Errorf("after %d attempts, last error: %s", attempts, err)
+	util.NotifyError(finalErr)
+	return finalErr
 }

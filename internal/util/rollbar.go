@@ -12,6 +12,11 @@ func NotifyLog(format string, args ...any) {
 	rollbar.Info(fmt.Sprintf(format, args...))
 }
 
+// NotifyWarning sends a warning message to Rollbar for logging purposes.
+func NotifyWarning(args ...any) {
+	rollbar.Warning(args)
+}
+
 // NotifyError sends an error message to Rollbar for logging purposes.
 // This function should be used to report non-critical errors.
 func NotifyError(args ...any) {
