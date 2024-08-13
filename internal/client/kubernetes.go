@@ -297,6 +297,7 @@ func (k *KubeClient) WaitForPodsRunning(
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop() // Ensure the ticker is stopped when we're done.
 
+	util.NotifyLog("Start checking pods status very 60 seconds...")
 	for {
 		select {
 		case <-ctx.Done():
