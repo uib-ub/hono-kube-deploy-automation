@@ -35,6 +35,12 @@ spec:
                 name: github-deploy-hono
                 key: webhook-secret
                 optional: false
+          - name: ROLLBAR_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-deploy-hono
+                key: rollbar-token
+                optional: false
         securityContext:
           privileged: true  # Required for Docker-in-Docker unless using socket mounting
           readOnlyRootFilesystem: false # Set to true if your app does not need to write to the filesystem
