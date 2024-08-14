@@ -538,10 +538,6 @@ func (s *Server) retryKubeResources(attempts int, initialSleep time.Duration, ku
 			return nil // Success
 		}
 
-		if i >= (attempts - 1) {
-			break // Stop if the last attempt has been reached
-		}
-
 		log.Warnf("Attempt %d failed, retrying in %v: %v", i+1, sleep, err)
 		util.NotifyWarning("Retry attempt %d failed: %v", i+1, err)
 
