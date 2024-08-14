@@ -527,6 +527,7 @@ func (s *Server) collectCleanupErrors(errChan <-chan error) error {
 	return nil
 }
 
+// retryKubeResources retries Kubernetes resource operations with exponential backoff.
 func (s *Server) retryKubeResources(attempts int, initialSleep time.Duration, kubeFunc func() error) error {
 	var err error
 	sleep := initialSleep
