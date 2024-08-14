@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"os"
 	"testing"
 )
@@ -55,6 +56,14 @@ func TestImagePush(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed to push image in test case %d: expected nil, got %v", i, err)
 		}
+
+		t.Cleanup(func() {
+			githubCli := NewGithubClient(tc.dockerOptions.RegistryPassword)
+			err := githubCli.DeletePackageImage(context.Background(), tc.registryOwner, "container", tc.imageName, tc.imageTag)
+			if err != nil {
+				t.Errorf("failed to clean up by deleting image on Github packages in test case %d: expected nil, got %v", i, err)
+			}
+		})
 	}
 }
 
