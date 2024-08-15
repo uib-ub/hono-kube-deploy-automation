@@ -261,21 +261,26 @@ var githubRepositoryTestCases = []struct {
 	},
 }
 
-func TestDownloadGithubRepository(t *testing.T) {
+func TestGithubLocalRepoLifecycle(t *testing.T) {
 	for i, tc := range githubRepositoryTestCases {
-		err := tc.githubClient.DownloadGithubRepository(tc.destPath, tc.repo, tc.branch)
-		if err != nil {
-			t.Errorf("failed to download Github repo in test case %d: expected nil, got %v", i, err)
-		}
-	}
-}
+		t.Run("DownloadGithubRepository", func(t *testing.T) {
+			err := tc.githubClient.DownloadGithubRepository(tc.destPath, tc.repo, tc.branch)
+			if err != nil {
+				t.Errorf("DownloadGithubRepository() error in test case %d: expected nil, got %v", i, err)
+			}
+		})
 
-func TestDeleteLocalRepository(t *testing.T) {
-	for i, tc := range githubRepositoryTestCases {
-		err := tc.githubClient.DeleteLocalRepository(tc.destPath)
-		if err != nil {
-			t.Errorf("failed to delete local repo in test case %d: expected nil, got %v", i, err)
-		}
+		t.Run("DeleteLocalRepository", func(t *testing.T) {
+			err := tc.githubClient.DeleteLocalRepository(tc.destPath)
+			if err != nil {
+				t.Errorf("DeleteLocalRepository() error in test case %d: expected nil, got %v", i, err)
+			}
+
+			// Check if the directory was actually deleted
+			if _, err := os.Stat(tc.destPath); !os.IsNotExist(err) {
+				t.Errorf("DeleteLocalRepository() failed to delete the directory")
+			}
+		})
 	}
 }
 
