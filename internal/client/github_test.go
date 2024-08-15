@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-github/v63/github"
@@ -269,13 +270,11 @@ func TestGithubLocalRepoLifecycle(t *testing.T) {
 				t.Errorf("DownloadGithubRepository() error in test case %d: expected nil, got %v", i, err)
 			}
 		})
-
 		t.Run("DeleteLocalRepository", func(t *testing.T) {
 			err := tc.githubClient.DeleteLocalRepository(tc.destPath)
 			if err != nil {
 				t.Errorf("DeleteLocalRepository() error in test case %d: expected nil, got %v", i, err)
 			}
-
 			// Check if the directory was actually deleted
 			if _, err := os.Stat(tc.destPath); !os.IsNotExist(err) {
 				t.Errorf("DeleteLocalRepository() failed to delete the directory")
@@ -284,29 +283,53 @@ func TestGithubLocalRepoLifecycle(t *testing.T) {
 	}
 }
 
+// Test cases for testing triggering GitHub workflows
 var workflowTestCases = []struct {
-	ctx          context.Context
-	owner        string
-	repo         string
-	WFFile       string
-	branch       string
-	githubClient *GithubClient
+	name          string
+	githubClient  *GithubClient
+	owner         string
+	repo          string
+	wfFile        string
+	branch        string
+	mockResponses map[string]httpmock.Responder
+	expectedError bool
 }{
 	{
-		ctx:          context.Background(),
-		owner:        "uib-ub",
-		repo:         "uib-ub-monorepo",
-		WFFile:       "deploy-kube-secrets-hono-api-test.yaml",
-		branch:       "test-webhook",
-		githubClient: NewGithubClient(os.Getenv("GITHUB_TOKEN")),
+		name:         "Successful Workflow Trigger",
+		githubClient: NewGithubClient(""),
+		owner:        "testowner",
+		repo:         "testrepo",
+		wfFile:       "test.yml",
+		branch:       "main",
+		mockResponses: map[string]httpmock.Responder{
+			"POST /repos/testowner/testrepo/actions/workflows/test.yml/dispatches": httpmock.NewStringResponder(204, ""),
+			"GET /repos/testowner/testrepo/actions/workflows/test.yml/runs": httpmock.NewJsonResponderOrPanic(200, github.WorkflowRuns{
+				WorkflowRuns: []*github.WorkflowRun{
+					{Status: github.String("completed"), Conclusion: github.String("success")},
+				},
+			}),
+		},
+		expectedError: false,
 	},
 }
 
 func TestTriggerWorkFlow(t *testing.T) {
-	for i, tc := range workflowTestCases {
-		err := tc.githubClient.TriggerWorkFlow(tc.ctx, tc.owner, tc.repo, tc.WFFile, tc.branch)
-		if err != nil {
-			t.Errorf("failed to trigger workflow in test case %d: expected nil, got %v", i, err)
-		}
+	ctx := context.Background()
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	for _, tc := range workflowTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for url, responder := range tc.mockResponses {
+				httpmock.RegisterResponder(strings.Split(url, " ")[0], "https://api.github.com"+strings.Split(url, " ")[1], responder)
+			}
+
+			err := tc.githubClient.TriggerWorkFlow(ctx, tc.owner, tc.repo, tc.wfFile, tc.branch)
+
+			if (err != nil) != tc.expectedError {
+				t.Errorf("TriggerWorkFlow() error = %v, expectedError %v", err, tc.expectedError)
+			}
+		})
 	}
 }
