@@ -122,6 +122,15 @@ var getPullRequestTestCases = []struct {
 		},
 		expectedError: false,
 	},
+	{
+		name:          "Invalid Pull Request",
+		githubClient:  NewGithubClient(""),
+		owner:         "testowner",
+		repo:          "testrepo",
+		issueNum:      999,
+		mockResponse:  nil,
+		expectedError: true,
+	},
 }
 
 func TestGetPullRequest(t *testing.T) {
