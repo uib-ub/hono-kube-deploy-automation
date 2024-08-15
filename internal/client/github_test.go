@@ -1,10 +1,99 @@
 package client
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"reflect"
 	"testing"
+
+	"github.com/google/go-github/v63/github"
 )
+
+var getWebhookEventTestCases = []struct {
+	name          string
+	githubClient  *GithubClient
+	webhookSecret string
+	eventType     string
+	payload       interface{}
+	expectedError bool
+}{
+	{
+		name:          "Valid IssueComment Event",
+		githubClient:  NewGithubClient(""),
+		webhookSecret: "test-secret",
+		eventType:     "issue_comment",
+		payload: &github.IssueCommentEvent{
+			Action: github.String("created"),
+			Issue: &github.Issue{
+				Number: github.Int(1),
+			},
+			Comment: &github.IssueComment{
+				Body: github.String("Test comment"),
+			},
+		},
+		expectedError: false,
+	},
+	{
+		name:          "Valid PullRequest Event",
+		githubClient:  NewGithubClient(""),
+		webhookSecret: "test-secret",
+		eventType:     "pull_request",
+		payload: &github.PullRequestEvent{
+			Action: github.String("opened"),
+			PullRequest: &github.PullRequest{
+				Number: github.Int(2),
+				Title:  github.String("Test PR"),
+			},
+		},
+		expectedError: false,
+	},
+	{
+		name:          "Invalid Event",
+		githubClient:  NewGithubClient(""),
+		webhookSecret: "test-secret",
+		eventType:     "invalid_event",
+		payload:       struct{}{},
+		expectedError: true,
+	},
+}
+
+func TestGetWebhookEvent(t *testing.T) {
+	for _, tc := range getWebhookEventTestCases {
+
+		t.Run(tc.name, func(t *testing.T) {
+			payload, _ := json.Marshal(tc.payload)
+			req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewBuffer(payload))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-GitHub-Event", tc.eventType)
+			req.Header.Set("X-Hub-Signature", "sha1="+createHmac(payload, []byte(tc.webhookSecret)))
+
+			event, err := tc.githubClient.GetWebhookEvent(req, tc.webhookSecret)
+
+			if (err != nil) != tc.expectedError {
+				t.Errorf("GetWebhookEvent() error = %v, expectedError %v", err, tc.expectedError)
+			}
+			if !tc.expectedError && event == nil {
+				t.Errorf("GetWebhookEvent() got nil event, expected non-nil")
+			}
+			if !tc.expectedError && reflect.TypeOf(event) != reflect.TypeOf(tc.payload) {
+				t.Errorf("GetWebhookEvent() got = %T, want %T", event, tc.payload)
+			}
+		})
+	}
+}
+
+func createHmac(payload []byte, secret []byte) string {
+	mac := hmac.New(sha1.New, secret)
+	mac.Write(payload)
+	return hex.EncodeToString(mac.Sum(nil))
+}
 
 // Test cases for testing DeletePackageImage()
 var delateImageTestCases = []struct {
