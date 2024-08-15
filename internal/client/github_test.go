@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/jarcoal/httpmock"
 )
 
+// Test cases for testing GetWebhookEvent
 var getWebhookEventTestCases = []struct {
 	name          string
 	githubClient  *GithubClient
@@ -97,6 +99,7 @@ func createHmac(payload []byte, secret []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// Test cases for testing GetPullRequest
 var getPullRequestTestCases = []struct {
 	name          string
 	githubClient  *GithubClient
@@ -173,37 +176,73 @@ func TestGetPullRequest(t *testing.T) {
 	}
 }
 
-// Test cases for testing DeletePackageImage()
-var delateImageTestCases = []struct {
-	ctx          context.Context
-	owner        string
-	packageName  string
-	packageType  string
-	tag          string
-	githubClient *GithubClient
+// Test cases for testing DeletePackageImage
+var deleteImageTestCases = []struct {
+	name          string
+	githubClient  *GithubClient
+	owner         string
+	packageName   string
+	packageType   string
+	tag           string
+	mockVersions  []*github.PackageVersion
+	expectedError bool
 }{
 	{
-		ctx:          context.Background(),
-		owner:        "uib-ub",
-		packageName:  "uib-ub/uib-ub-monorepo-api",
+		name:         "Valid Package Deletion",
+		githubClient: NewGithubClient(""),
+		owner:        "testowner",
+		packageName:  "testpackage",
 		packageType:  "container",
-		tag:          "test",
-		githubClient: NewGithubClient(os.Getenv("GITHUB_TOKEN")),
+		tag:          "v1.0.0",
+		mockVersions: []*github.PackageVersion{
+			{
+				ID: github.Int64(1),
+				Metadata: &github.PackageMetadata{
+					Container: &github.PackageContainerMetadata{
+						Tags: []string{"v1.0.0"},
+					},
+				},
+			},
+		},
+		expectedError: false,
+	},
+	{
+		name:          "Package Not Found",
+		githubClient:  NewGithubClient(""),
+		owner:         "testowner",
+		packageName:   "nonexistent",
+		packageType:   "container",
+		tag:           "v1.0.0",
+		mockVersions:  []*github.PackageVersion{},
+		expectedError: true,
 	},
 }
 
 func TestDeletePackageImage(t *testing.T) {
-	for i, tc := range delateImageTestCases {
-		err := tc.githubClient.DeletePackageImage(
-			tc.ctx,
-			tc.owner,
-			tc.packageType,
-			tc.packageName,
-			tc.tag,
-		)
-		if err != nil {
-			t.Errorf("failed delete package image in test case %d: expected nil, got %v", i, err)
-		}
+	ctx := context.Background()
+	// Mock the GitHub API response
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	for _, tc := range deleteImageTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			listUrl := fmt.Sprintf("https://api.github.com/users/%s/packages/%s/%s/versions",
+				tc.owner, tc.packageType, url.PathEscape(tc.packageName))
+			httpmock.RegisterResponder("GET", listUrl,
+				httpmock.NewJsonResponderOrPanic(200, tc.mockVersions))
+
+			if len(tc.mockVersions) > 0 {
+				deleteUrl := fmt.Sprintf("https://api.github.com/users/%s/packages/%s/%s/versions/%d",
+					tc.owner, tc.packageType, url.PathEscape(tc.packageName), tc.mockVersions[0].GetID())
+				httpmock.RegisterResponder("DELETE", deleteUrl,
+					httpmock.NewStringResponder(204, ""))
+			}
+
+			err := tc.githubClient.DeletePackageImage(ctx, tc.owner, tc.packageType, tc.packageName, tc.tag)
+			if (err != nil) != tc.expectedError {
+				t.Errorf("DeletePackageImage() error = %v, expectedError %v", err, tc.expectedError)
+			}
+		})
 	}
 }
 
