@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v63/github"
+	"github.com/jarcoal/httpmock"
 )
 
 var getWebhookEventTestCases = []struct {
@@ -93,6 +95,73 @@ func createHmac(payload []byte, secret []byte) string {
 	mac := hmac.New(sha1.New, secret)
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+var getPullRequestTestCases = []struct {
+	name          string
+	githubClient  *GithubClient
+	owner         string
+	repo          string
+	issueNum      int
+	mockResponse  *github.PullRequest
+	expectedError bool
+}{
+	{
+		name:         "Valid Pull Request with test branch",
+		githubClient: NewGithubClient(""),
+		owner:        "testowner",
+		repo:         "testrepo",
+		issueNum:     1,
+		mockResponse: &github.PullRequest{
+			Number: github.Int(1),
+			Title:  github.String("Test PR"),
+			Head: &github.PullRequestBranch{
+				Ref: github.String("test-branch"),
+				SHA: github.String("6dcb09b"),
+			},
+		},
+		expectedError: false,
+	},
+}
+
+func TestGetPullRequest(t *testing.T) {
+	ctx := context.Background()
+	// Mock the GitHub API response
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	for _, tc := range getPullRequestTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", tc.owner, tc.repo, tc.issueNum)
+
+			if tc.mockResponse != nil {
+				httpmock.RegisterResponder("GET", url,
+					httpmock.NewJsonResponderOrPanic(200, tc.mockResponse))
+			} else {
+				httpmock.RegisterResponder("GET", url,
+					httpmock.NewStringResponder(404, "Not found"))
+			}
+
+			pr, err := tc.githubClient.GetPullRequest(ctx, tc.owner, tc.repo, tc.issueNum)
+
+			if (err != nil) != tc.expectedError {
+				t.Errorf("GetPullRequest() error = %v, expectedError %v", err, tc.expectedError)
+			}
+
+			if !tc.expectedError && !reflect.DeepEqual(pr, tc.mockResponse) {
+				t.Errorf("GetPullRequest() got = %v, want %v", pr, tc.mockResponse)
+			}
+
+			if err == nil && !tc.expectedError {
+				if pr.GetHead().GetRef() != tc.mockResponse.GetHead().GetRef() {
+					t.Errorf("GetPullRequest() got = %v, want %v", pr.GetHead().GetRef(), tc.mockResponse.GetHead().GetRef())
+				}
+				if pr.GetHead().GetSHA() != tc.mockResponse.GetHead().GetSHA() {
+					t.Errorf("GetPullRequest() got = %v, want %v", pr.GetHead().GetSHA(), tc.mockResponse.GetHead().GetSHA())
+				}
+			}
+		})
+	}
 }
 
 // Test cases for testing DeletePackageImage()
