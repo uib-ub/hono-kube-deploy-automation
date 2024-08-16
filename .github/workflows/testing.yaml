@@ -3,7 +3,8 @@ name: Testing GO code
 on:
   push:
     branches:
-      - '**' # Trigger on push to any branch
+     # - '**' # Trigger on push to any branch
+     - main
 
   pull_request:
     branches:
@@ -29,7 +30,7 @@ jobs:
         go mod download
 
     - name: Run tests
-      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.event.pull_request.merged == false)
+      # if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.event.pull_request.merged == false)
       env:
         WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
         GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
