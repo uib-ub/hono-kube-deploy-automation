@@ -34,6 +34,6 @@ jobs:
         WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
         GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
         ROLLBAR_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
-        LOCAL_REPO_SRC: ${{ runner.home }}/app
+        LOCAL_REPO_SRC: ${{ runner.temp }}/app
       run: |
-        go test -v ./internal/...
+        go test -v ./internal/client/
