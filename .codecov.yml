@@ -1,0 +1,14 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 80%  # Overall project coverage should be at least 80%
+        threshold: 1%  # Allowable drop in coverage (e.g., 1%)
+    patch:
+      default:
+        target: auto  # Use the average coverage of the repository as the target
+        threshold: 0%  # No decrease in coverage allowed for new patches
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
