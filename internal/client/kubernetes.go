@@ -313,39 +313,41 @@ func (k *KubeClient) WaitForPodsRunning(
 
 	util.NotifyLog("Start checking pods status very 60 seconds...")
 	for {
+		// When the ticker ticks, perform the pod status check.
+		labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
+		if err != nil {
+			log.WithError(err).Error("Failed to create label selector")
+			return fmt.Errorf("reate label selector failure: %w", err)
+		}
+		podList, err := k.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector.String(),
+		})
+		if err != nil {
+			log.WithError(err).Error("Failed to list pods")
+			return fmt.Errorf("list pods failure: %w", err)
+		}
+		// Count how many of the listed pods are in the "Running" phase.
+		podsRunning := 0
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == corev1.PodRunning {
+				podsRunning++
+			}
+		}
+
+		log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
+		util.NotifyLog("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
+		// Check if the number of running pods matches the expected count.
+		// If all expected pods are running, return successfully.
+		if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			// If the context is cancelled or times out, return an error.
 			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		case <-ticker.C:
-			// When the ticker ticks, perform the pod status check.
-			labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
-			if err != nil {
-				log.WithError(err).Error("Failed to create label selector")
-				return fmt.Errorf("reate label selector failure: %w", err)
-			}
-			podList, err := k.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
-				LabelSelector: labelSelector.String(),
-			})
-			if err != nil {
-				log.WithError(err).Error("Failed to list pods")
-				return fmt.Errorf("list pods failure: %w", err)
-			}
-			// Count how many of the listed pods are in the "Running" phase.
-			podsRunning := 0
-			for _, pod := range podList.Items {
-				if pod.Status.Phase == corev1.PodRunning {
-					podsRunning++
-				}
-			}
-
-			log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
-			util.NotifyLog("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
-			// Check if the number of running pods matches the expected count.
-			// If all expected pods are running, return successfully.
-			if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
-				return nil
-			}
+			// Wait for the next tick of the ticker.
 		}
 	}
 }

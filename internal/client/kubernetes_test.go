@@ -3,7 +3,9 @@ package client
 import (
 	"context"
 	"testing"
+	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -155,6 +157,85 @@ func TestDeployDeleteKubeResource(t *testing.T) {
 				t.Errorf("Expected resource to be deleted, but it still exists")
 			} else if !errors.IsNotFound(err) {
 				t.Errorf("Unexpected error when checking deletion: %v", err)
+			}
+		})
+	}
+}
+
+var (
+	defaultNamespace        = "default"
+	defaultDeploymentLabels = map[string]string{"app": "test"}
+)
+
+var waitForPodsRunningTestCases = []struct {
+	name             string
+	kubeClient       *KubeClient
+	namespace        string
+	deploymentLabels map[string]string
+	pods             []*corev1.Pod
+	expectedReplicas int32
+}{
+	{
+		name:             "Test the Waiting for pods to be ready and running",
+		kubeClient:       &KubeClient{KubernetesInterface: fake.NewSimpleClientset()},
+		namespace:        defaultNamespace,
+		deploymentLabels: defaultDeploymentLabels,
+		pods: []*corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod-1",
+					Namespace: defaultNamespace,
+					Labels:    defaultDeploymentLabels,
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod-2",
+					Namespace: defaultNamespace,
+					Labels:    defaultDeploymentLabels,
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod-3",
+					Namespace: defaultNamespace,
+					Labels:    defaultDeploymentLabels,
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+				},
+			},
+		},
+		expectedReplicas: 3,
+	},
+}
+
+func TestWaitForPodsRunning(t *testing.T) {
+	for _, tc := range waitForPodsRunningTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Create the pods to the fake clientset
+			for _, pod := range tc.pods {
+				_, err := tc.kubeClient.CoreV1().Pods(tc.namespace).Create(ctx, pod, metav1.CreateOptions{})
+				if err != nil {
+					t.Fatalf("Failed to create pod: %v", err)
+				}
+			}
+
+			// Test WaitForPodsRunning
+			ctx, cancel := context.WithTimeout(context.TODO(), 120*time.Second)
+			defer cancel()
+
+			err := tc.kubeClient.WaitForPodsRunning(ctx, tc.namespace, tc.deploymentLabels, tc.expectedReplicas)
+			if err != nil {
+				t.Fatalf("WaitForPodsRunning() error = %v", err)
 			}
 		})
 	}
