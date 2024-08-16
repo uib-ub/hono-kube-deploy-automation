@@ -35,4 +35,4 @@ jobs:
         ROLLBAR_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
         LOCAL_REPO_SRC: ${{ runner.temp }}/app
       run: |
-        go test -v ./internal/client/
+        go test -v -coverprofile=coverage.out ./internal/client/

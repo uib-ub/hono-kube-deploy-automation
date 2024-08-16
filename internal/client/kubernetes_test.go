@@ -4,17 +4,19 @@ import (
 	"context"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-var deployTestCases = []struct {
+var kubeTestCases = []struct {
 	name         string
 	kubeClient   *KubeClient
 	resourceYaml []byte
 	namespace    string
 }{
 	{
-		name:       "Deploy Deployment",
+		name:       "Deployment",
 		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: []byte(`
         apiVersion: apps/v1
@@ -40,7 +42,7 @@ var deployTestCases = []struct {
 		namespace: "default",
 	},
 	{
-		name:       "Deploy Namespace",
+		name:       "Namespace",
 		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: []byte(`
         apiVersion: v1
@@ -51,7 +53,7 @@ var deployTestCases = []struct {
 		namespace: "",
 	},
 	{
-		name:       "Deploy ConfigMap",
+		name:       "ConfigMap",
 		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: []byte(`
         apiVersion: v1
@@ -64,7 +66,7 @@ var deployTestCases = []struct {
 		namespace: "default",
 	},
 	{
-		name:       "Deploy Service",
+		name:       "Service",
 		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: []byte(`
         apiVersion: v1
@@ -82,7 +84,7 @@ var deployTestCases = []struct {
 		namespace: "default",
 	},
 	{
-		name:       "Deploy Service",
+		name:       "Ingress",
 		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: []byte(`
         apiVersion: networking.k8s.io/v1
@@ -106,9 +108,9 @@ var deployTestCases = []struct {
 	},
 }
 
-func TestDeploy(t *testing.T) {
-	for _, tc := range deployTestCases {
-		t.Run(tc.name, func(t *testing.T) {
+func TestDeployDeleteKubeResource(t *testing.T) {
+	for _, tc := range kubeTestCases {
+		t.Run("DeployResource", func(t *testing.T) {
 			ctx := context.Background()
 
 			// Deploy the resource
@@ -118,12 +120,41 @@ func TestDeploy(t *testing.T) {
 			}
 
 			// Validate the labels
-			if tc.name == "Deploy Deployment" && len(labels) == 0 {
-				t.Errorf("Expected labels, got none")
+			if tc.name == "Deployment" && len(labels) == 0 {
+				t.Errorf("Deploy() error, expected labels, got none")
 			}
 
-			if tc.name == "Deploy Deployment" && replicas != 3 {
-				t.Errorf("Returned replicas = %v, want %v", replicas, 3)
+			if tc.name == "Deployment" && replicas != 3 {
+				t.Errorf("Deploy() error, returned replicas = %v, want %v", replicas, 3)
+			}
+		})
+
+		t.Run("DeleteResource", func(t *testing.T) {
+			ctx := context.Background()
+			// Delete the resource
+			err := tc.kubeClient.Delete(ctx, tc.resourceYaml, tc.namespace)
+			if err != nil {
+				t.Fatalf("Delete() error = %v", err)
+			}
+			// Validate deletion based on resource kind
+			switch tc.name {
+			case "Deployment":
+				_, err = tc.kubeClient.AppsV1().Deployments(tc.namespace).Get(ctx, "test-deployment", metav1.GetOptions{})
+			case "Namespace":
+				_, err = tc.kubeClient.CoreV1().Namespaces().Get(ctx, "test-namespace", metav1.GetOptions{})
+			case "ConfigMap":
+				_, err = tc.kubeClient.CoreV1().ConfigMaps(tc.namespace).Get(ctx, "test-configmap", metav1.GetOptions{})
+			case "Service":
+				_, err = tc.kubeClient.CoreV1().Services(tc.namespace).Get(ctx, "test-service", metav1.GetOptions{})
+			case "Ingress":
+				_, err = tc.kubeClient.NetworkingV1().Ingresses(tc.namespace).Get(ctx, "test-ingress", metav1.GetOptions{})
+			}
+
+			// Expect an error indicating the resource is not found
+			if err == nil {
+				t.Errorf("Expected resource to be deleted, but it still exists")
+			} else if !errors.IsNotFound(err) {
+				t.Errorf("Unexpected error when checking deletion: %v", err)
 			}
 		})
 	}
