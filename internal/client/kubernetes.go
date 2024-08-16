@@ -17,6 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	typednetworkingv1 "k8s.io/client-go/kubernetes/typed/networking/v1"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/util"
@@ -29,10 +32,21 @@ type ConfigMapType = *corev1.ConfigMap
 type ServiceType = *corev1.Service
 type IngressType = *networkingv1.Ingress
 
-// KubeClient wraps the Kubernetes clientset and provides methods to
-// handle Kubernetes resources.
+// KubernetesInterface defines the methods we use from the Kubernetes clientset
+type KubernetesInterface interface {
+	AppsV1() typedappsv1.AppsV1Interface
+	CoreV1() typedcorev1.CoreV1Interface
+	NetworkingV1() typednetworkingv1.NetworkingV1Interface
+}
+
+// Ensure that kubernetes.Clientset implements KubernetesInterface
+var _ KubernetesInterface = &kubernetes.Clientset{}
+
+// KubeClient struct accepts an interface that both kubernetes.Clientset and fake.Clientset implement.
+// This approach allows you to use both real and fake clients interchangeably.
 type KubeClient struct {
-	*kubernetes.Clientset
+	// *kubernetes.Clientset
+	KubernetesInterface
 }
 
 // NewKubernetesClient creates a new KubeClient using the provided kubeConfig.
