@@ -1,5 +1,7 @@
 # hono-kube-deploy-automation
 
+[![codecov](https://codecov.io/gh/uib-ub/hono-kube-deploy-automation/graph/badge.svg?token=BK0QPWIF3P)](https://codecov.io/gh/uib-ub/hono-kube-deploy-automation)
+
 The purpose of this repository is to provide an automated way to deploy hono-api to Kubernetes using Githhub webhook events.
 
 ## Workflow Diagram
