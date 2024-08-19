@@ -17,6 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	typednetworkingv1 "k8s.io/client-go/kubernetes/typed/networking/v1"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/util"
@@ -29,10 +32,21 @@ type ConfigMapType = *corev1.ConfigMap
 type ServiceType = *corev1.Service
 type IngressType = *networkingv1.Ingress
 
-// KubeClient wraps the Kubernetes clientset and provides methods to
-// handle Kubernetes resources.
+// KubernetesInterface defines the methods we use from the Kubernetes clientset
+type KubernetesInterface interface {
+	AppsV1() typedappsv1.AppsV1Interface
+	CoreV1() typedcorev1.CoreV1Interface
+	NetworkingV1() typednetworkingv1.NetworkingV1Interface
+}
+
+// Ensure that kubernetes.Clientset implements KubernetesInterface
+var _ KubernetesInterface = &kubernetes.Clientset{}
+
+// KubeClient struct accepts an interface that both kubernetes.Clientset and fake.Clientset implement.
+// This approach allows you to use both real and fake clients interchangeably.
 type KubeClient struct {
-	*kubernetes.Clientset
+	// *kubernetes.Clientset
+	KubernetesInterface
 }
 
 // NewKubernetesClient creates a new KubeClient using the provided kubeConfig.
@@ -299,39 +313,41 @@ func (k *KubeClient) WaitForPodsRunning(
 
 	util.NotifyLog("Start checking pods status very 60 seconds...")
 	for {
+		// When the ticker ticks, perform the pod status check.
+		labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
+		if err != nil {
+			log.WithError(err).Error("Failed to create label selector")
+			return fmt.Errorf("create label selector failure: %w", err)
+		}
+		podList, err := k.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector.String(),
+		})
+		if err != nil {
+			log.WithError(err).Error("Failed to list pods")
+			return fmt.Errorf("list pods failure: %w", err)
+		}
+		// Count how many of the listed pods are in the "Running" phase.
+		podsRunning := 0
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == corev1.PodRunning {
+				podsRunning++
+			}
+		}
+
+		log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
+		util.NotifyLog("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
+		// Check if the number of running pods matches the expected count.
+		// If all expected pods are running, return successfully.
+		if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			// If the context is cancelled or times out, return an error.
 			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		case <-ticker.C:
-			// When the ticker ticks, perform the pod status check.
-			labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
-			if err != nil {
-				log.WithError(err).Error("Failed to create label selector")
-				return fmt.Errorf("reate label selector failure: %w", err)
-			}
-			podList, err := k.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
-				LabelSelector: labelSelector.String(),
-			})
-			if err != nil {
-				log.WithError(err).Error("Failed to list pods")
-				return fmt.Errorf("list pods failure: %w", err)
-			}
-			// Count how many of the listed pods are in the "Running" phase.
-			podsRunning := 0
-			for _, pod := range podList.Items {
-				if pod.Status.Phase == corev1.PodRunning {
-					podsRunning++
-				}
-			}
-
-			log.Infof("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
-			util.NotifyLog("Waiting for %s pods for namespace %s to be running: %d/%d\n", labelSelector.String(), ns, podsRunning, len(podList.Items))
-			// Check if the number of running pods matches the expected count.
-			// If all expected pods are running, return successfully.
-			if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
-				return nil
-			}
+			// Wait for the next tick of the ticker.
 		}
 	}
 }
