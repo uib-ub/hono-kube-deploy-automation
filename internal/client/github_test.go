@@ -311,6 +311,53 @@ var workflowTestCases = []struct {
 		},
 		expectedError: false,
 	},
+	{
+		name:         "Workflow Fails with Conclusion: failure",
+		githubClient: NewGithubClient(""),
+		owner:        "testowner",
+		repo:         "testrepo",
+		wfFile:       "test.yml",
+		branch:       "main",
+		mockResponses: map[string]httpmock.Responder{
+			"POST /repos/testowner/testrepo/actions/workflows/test.yml/dispatches": httpmock.NewStringResponder(204, ""),
+			"GET /repos/testowner/testrepo/actions/workflows/test.yml/runs": httpmock.NewJsonResponderOrPanic(200, github.WorkflowRuns{
+				WorkflowRuns: []*github.WorkflowRun{
+					{Status: github.String("completed"), Conclusion: github.String("failure")},
+				},
+			}),
+		},
+		expectedError: true,
+	},
+	{
+		name:         "Workflow Timeout",
+		githubClient: NewGithubClient(""),
+		owner:        "testowner",
+		repo:         "testrepo",
+		wfFile:       "test.yml",
+		branch:       "main",
+		mockResponses: map[string]httpmock.Responder{
+			"POST /repos/testowner/testrepo/actions/workflows/test.yml/dispatches": httpmock.NewStringResponder(204, ""),
+			"GET /repos/testowner/testrepo/actions/workflows/test.yml/runs": httpmock.NewJsonResponderOrPanic(200, github.WorkflowRuns{
+				WorkflowRuns: []*github.WorkflowRun{
+					{Status: github.String("in_progress"), Conclusion: github.String("")},
+				},
+			}),
+		},
+		expectedError: true,
+	},
+	{
+		name:         "Workflow Status Unavailable",
+		githubClient: NewGithubClient(""),
+		owner:        "testowner",
+		repo:         "testrepo",
+		wfFile:       "test.yml",
+		branch:       "main",
+		mockResponses: map[string]httpmock.Responder{
+			"POST /repos/testowner/testrepo/actions/workflows/test.yml/dispatches": httpmock.NewStringResponder(204, ""),
+			"GET /repos/testowner/testrepo/actions/workflows/test.yml/runs":        httpmock.NewStringResponder(404, "Not found"),
+		},
+		expectedError: true,
+	},
 }
 
 func TestTriggerWorkFlow(t *testing.T) {
