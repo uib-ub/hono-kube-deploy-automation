@@ -240,3 +240,127 @@ func TestWaitForPodsRunning(t *testing.T) {
 		})
 	}
 }
+
+var kubeFailureTestCases = []struct {
+	name         string
+	kubeClient   *KubeClient
+	resourceYaml []byte
+	namespace    string
+}{
+	{
+		name:       "UnsupportedResource",
+		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
+		resourceYaml: []byte(`
+        apiVersion: v1
+        kind: UnsupportedResource
+        `),
+		namespace: "default",
+	},
+	{
+		name:       "PersistentVolumeClaim type",
+		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
+		resourceYaml: []byte(`
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        `),
+		namespace: "default",
+	},
+	{
+		name:         "nil resource yaml and empty namespace",
+		kubeClient:   &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
+		resourceYaml: nil,
+		namespace:    "",
+	},
+	{
+		name:       "no labels and replicas",
+		kubeClient: &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
+		resourceYaml: []byte(`
+        apiVersion: apps/v1
+        kind: Deployment
+        `),
+		namespace: "default",
+	},
+}
+
+func TestKubeFailure(t *testing.T) {
+	for _, tc := range kubeFailureTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Deploy the resource
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace)
+			if err == nil {
+				if tc.name == "no labels and replicas" && len(labels) != 0 && replicas != 0 {
+					t.Errorf("Deploy() error, expected 0 labels and 0 replicas, got %v labels and %v replicas", len(labels), replicas)
+				} else if tc.name != "no labels and replicas" {
+					t.Errorf("Deploy() expected error, got none")
+				}
+			}
+		})
+
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Delete the resource
+			err := tc.kubeClient.Delete(ctx, tc.resourceYaml, tc.namespace)
+			if err == nil {
+				if tc.name != "no labels and replicas" {
+					t.Errorf("Delete() expected error, got none")
+				}
+			}
+		})
+	}
+}
+
+var waitForPodsTimoutTestCases = []struct {
+	name             string
+	kubeClient       *KubeClient
+	namespace        string
+	deploymentLabels map[string]string
+	pods             []*corev1.Pod
+	expectedReplicas int32
+}{
+	{
+		name:             "Test the Waiting for pods got timeout",
+		kubeClient:       &KubeClient{KubernetesInterface: fake.NewSimpleClientset()},
+		namespace:        defaultNamespace,
+		deploymentLabels: nil,
+		pods: []*corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: defaultNamespace,
+					Labels:    nil,
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodPending,
+				},
+			},
+		},
+		expectedReplicas: 1,
+	},
+}
+
+func TestTimeoutDuringDeployment(t *testing.T) {
+	for _, tc := range waitForPodsTimoutTestCases {
+		t.Run("Timeout", func(t *testing.T) {
+			ctx := context.Background()
+			// Create the pods to the fake clientset
+			for _, pod := range tc.pods {
+				_, err := tc.kubeClient.CoreV1().Pods(tc.namespace).Create(ctx, pod, metav1.CreateOptions{})
+				if err != nil {
+					t.Fatalf("Failed to create pod: %v", err)
+				}
+			}
+
+			// Test WaitForPodsRunning
+			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+
+			err := tc.kubeClient.WaitForPodsRunning(ctx, tc.namespace, tc.deploymentLabels, tc.expectedReplicas)
+			if err == nil {
+				t.Fatalf("Expected timeout error during deployment, got nil")
+			}
+		})
+	}
+}

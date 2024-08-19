@@ -317,7 +317,7 @@ func (k *KubeClient) WaitForPodsRunning(
 		labelSelector, err := labels.ValidatedSelectorFromSet(deploymentLabels)
 		if err != nil {
 			log.WithError(err).Error("Failed to create label selector")
-			return fmt.Errorf("reate label selector failure: %w", err)
+			return fmt.Errorf("create label selector failure: %w", err)
 		}
 		podList, err := k.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
 			LabelSelector: labelSelector.String(),
