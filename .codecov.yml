@@ -2,13 +2,22 @@ coverage:
   status:
     project:
       default:
-        target: 80%  # Overall project coverage should be at least 80%
+        target: 80%    # Overall project coverage should be at least 80%
         threshold: 1%  # Allowable drop in coverage (e.g., 1%)
     patch:
       default:
-        target: auto  # Use the average coverage of the repository as the target
+        target: auto   # Use the average coverage of the repository as the target
         threshold: 0%  # No decrease in coverage allowed for new patches
 
+flags:
+  unittests:
+    paths:
+      - internal/
+    carryforward: true
+    name: Unit Tests Coverage
+
 comment:
-  layout: "reach,diff,flags,files,footer"
+  layout: "reach, diff, flags, files, footer"
   behavior: default
+  require_changes: false # The comment is posted on every PR, even if there are no coverage changes.
+  show_flag: true        # Displays the flags in the comment.
