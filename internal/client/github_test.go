@@ -264,12 +264,21 @@ var githubRepositoryTestCases = []struct {
 
 func TestGithubLocalRepoLifecycle(t *testing.T) {
 	for i, tc := range githubRepositoryTestCases {
+		// test for cloning a repository
 		t.Run("DownloadGithubRepository", func(t *testing.T) {
 			err := tc.githubClient.DownloadGithubRepository(tc.destPath, tc.repo, tc.branch)
 			if err != nil {
 				t.Errorf("DownloadGithubRepository() error in test case %d: expected nil, got %v", i, err)
 			}
 		})
+		// test for pulling a repository
+		t.Run("DownloadGithubRepository", func(t *testing.T) {
+			err := tc.githubClient.DownloadGithubRepository(tc.destPath, tc.repo, tc.branch)
+			if err != nil {
+				t.Errorf("DownloadGithubRepository() error in test case %d: expected nil, got %v", i, err)
+			}
+		})
+		// test for deleting a repository
 		t.Run("DeleteLocalRepository", func(t *testing.T) {
 			err := tc.githubClient.DeleteLocalRepository(tc.destPath)
 			if err != nil {
@@ -376,6 +385,60 @@ func TestTriggerWorkFlow(t *testing.T) {
 
 			if (err != nil) != tc.expectedError {
 				t.Errorf("TriggerWorkFlow() error = %v, expectedError %v", err, tc.expectedError)
+			}
+		})
+	}
+}
+
+// Test cases for testing handleWorkflowConclusion method
+var handleWorkflowConclusionTestCases = []struct {
+	name         string
+	githubClient *GithubClient
+	wfFile       string
+	conclusion   string
+}{
+	{
+		name:         "Workflow Success",
+		githubClient: NewGithubClient(""),
+		wfFile:       "test.yml",
+		conclusion:   "success",
+	},
+	{
+		name:         "Workflow Failure",
+		githubClient: NewGithubClient(""),
+		wfFile:       "test.yml",
+		conclusion:   "failure",
+	},
+	{
+		name:         "Workflow cancelled",
+		githubClient: NewGithubClient(""),
+		wfFile:       "test.yml",
+		conclusion:   "cancelled",
+	},
+	{
+		name:         "Workflow timed out",
+		githubClient: NewGithubClient(""),
+		wfFile:       "test.yml",
+		conclusion:   "timed_out",
+	},
+	{
+		name:         "Workflow Unknown Conclusion",
+		githubClient: NewGithubClient(""),
+		wfFile:       "test.yml",
+		conclusion:   "unknown",
+	},
+}
+
+func TestHandleWorkflowConclusion(t *testing.T) {
+	for _, tc := range handleWorkflowConclusionTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.githubClient.handleWorkflowConclusion(tc.wfFile, tc.conclusion)
+
+			if tc.conclusion == "success" && err != nil {
+				t.Errorf("handleWorkflowConclusion() error = %v, expected nil", err)
+			}
+			if tc.conclusion != "success" && err == nil {
+				t.Errorf("handleWorkflowConclusion() error = nil, expected non-nil")
 			}
 		})
 	}

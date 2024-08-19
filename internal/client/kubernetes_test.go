@@ -312,6 +312,7 @@ func TestKubeFailure(t *testing.T) {
 	}
 }
 
+// Test cases for testing timeout during waiting for pods to be running
 var waitForPodsTimoutTestCases = []struct {
 	name             string
 	kubeClient       *KubeClient
