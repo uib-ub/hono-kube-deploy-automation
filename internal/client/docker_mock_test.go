@@ -81,6 +81,18 @@ func TestDockerMockLifecycle(t *testing.T) {
 			TarWithOptions: mockTarFunc, // Inject the mock tarball creation function.
 		}
 
+		t.Run("NewDockerClient", func(t *testing.T) {
+			dockerClient, err := NewDockerClient(tc.dockerOptions, nil)
+
+			assert.NoError(t, err, "expected no error when creating DockerClient with default tarball function")
+			assert.NotNil(t, dockerClient, "expected DockerClient to be non-nil")
+
+			// Verify that calling the TarWithOptions function behaves as expected
+			tarball, err := dockerClient.TarWithOptions(tc.localRepoSrcPath, &archive.TarOptions{})
+			assert.NoError(t, err, "expected no error when calling TarWithOptions")
+			assert.NotNil(t, tarball, "expected TarWithOptions to return a non-nil tarball")
+		})
+
 		t.Run("ImageBuild", func(t *testing.T) {
 			// Setup mock response for a successful image build.
 			// The Docker client will return a response with "Build successful" as the body.
