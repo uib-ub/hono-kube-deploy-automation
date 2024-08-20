@@ -36,16 +36,23 @@ type DockerAPIClient interface {
 // Ensure that dockercli.Client implements DockerAPIClient
 var _ DockerAPIClient = &dockercli.Client{}
 
+// TarWithOptionsFunc is a function type that matches the signature of archive.TarWithOptions.
+// It accepts a source path and tar options and returns an io.ReadCloser representing the tarball and an error.
+// This allows us to inject different implementations (e.g., for testing) into DockerClient.
+type TarWithOptionsFunc func(srcPath string, options *archive.TarOptions) (io.ReadCloser, error)
+
 // DockerClient struct accepts an interface that both *dockercli.Client and MockDockerClient implement.
 // This approach allows you to use both real and fake clients interchangeably.
 type DockerClient struct {
 	// Client *dockercli.Client // Client is the Docker API client
-	Client        DockerAPIClient // Use the interface here
-	DockerOptions *DockerOptions  // DockerOptions holds the configuration options for Docker operations.
+	Client         DockerAPIClient    // Use the interface here
+	DockerOptions  *DockerOptions     // DockerOptions holds the configuration options for Docker operations.
+	TarWithOptions TarWithOptionsFunc // TarWithOptions is a function used to create tarballs; it can be mocked for testing.
 }
 
-// NewDockerClient creates a new Docker client with the given options.
-func NewDockerClient(dockerOptions *DockerOptions) (*DockerClient, error) {
+// NewDockerClient creates a new Docker client with the given options and tarball creation function.
+// If no custom tarball function is provided, the default archive.TarWithOptions function is used.
+func NewDockerClient(dockerOptions *DockerOptions, tarFunc TarWithOptionsFunc) (*DockerClient, error) {
 	client, err := dockercli.NewClientWithOpts(
 		dockercli.FromEnv,
 		dockercli.WithAPIVersionNegotiation(),
@@ -53,7 +60,16 @@ func NewDockerClient(dockerOptions *DockerOptions) (*DockerClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
-	return &DockerClient{client, dockerOptions}, nil
+	// If no custom tarball function is provided, use the default archive.TarWithOptions.
+	if tarFunc == nil {
+		tarFunc = archive.TarWithOptions
+	}
+	//return &DockerClient{client, dockerOptions}, nil
+	return &DockerClient{
+		Client:         client,
+		DockerOptions:  dockerOptions,
+		TarWithOptions: tarFunc,
+	}, nil
 }
 
 // ImageBuild builds a Docker image from the given local repository path and tags it.
@@ -72,8 +88,9 @@ func (d *DockerClient) ImageBuild(
 		imageTag,
 	)
 
-	// Create a tar archive of the local repository path.
-	tar, err := archive.TarWithOptions(localRepoPath, &archive.TarOptions{})
+	// Create a tar archive of the local repository path using the injected TarWithOptions function.
+	// This function is either the real archive.TarWithOptions or a mock provided during testing.
+	tar, err := d.TarWithOptions(localRepoPath, &archive.TarOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create tar archive: %w", err)
 	}
