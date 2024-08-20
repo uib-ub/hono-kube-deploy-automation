@@ -34,9 +34,10 @@ type DockerAPIClient interface {
 }
 
 // Ensure that dockercli.Client implements DockerAPIClient
-// var _ DockerAPIClient = &dockercli.Client{}
+var _ DockerAPIClient = &dockercli.Client{}
 
-// DockerClient warps the Docker API client and the options for Docker operations.
+// DockerClient struct accepts an interface that both *dockercli.Client and MockDockerClient implement.
+// This approach allows you to use both real and fake clients interchangeably.
 type DockerClient struct {
 	// Client *dockercli.Client // Client is the Docker API client
 	Client        DockerAPIClient // Use the interface here
