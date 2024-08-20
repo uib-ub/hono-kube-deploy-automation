@@ -25,10 +25,22 @@ type DockerOptions struct {
 	Dockerfile        string // the Dockerfile to use for building the image
 }
 
+// DockerAPIClient defines the methods that your DockerClient will use.
+type DockerAPIClient interface {
+	ImageBuild(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (types.ImageBuildResponse, error)
+	ImagePush(ctx context.Context, image string, options image.PushOptions) (io.ReadCloser, error)
+	ImageRemove(ctx context.Context, imageID string, options image.RemoveOptions) ([]image.DeleteResponse, error)
+	ImagesPrune(ctx context.Context, pruneFilters filters.Args) (image.PruneReport, error)
+}
+
+// Ensure that dockercli.Client implements DockerAPIClient
+// var _ DockerAPIClient = &dockercli.Client{}
+
 // DockerClient warps the Docker API client and the options for Docker operations.
 type DockerClient struct {
-	Client        *dockercli.Client // Client is the Docker API client
-	DockerOptions *DockerOptions    // DockerOptions holds the configuration options for Docker operations.
+	// Client *dockercli.Client // Client is the Docker API client
+	Client        DockerAPIClient // Use the interface here
+	DockerOptions *DockerOptions  // DockerOptions holds the configuration options for Docker operations.
 }
 
 // NewDockerClient creates a new Docker client with the given options.
@@ -79,10 +91,14 @@ func (d *DockerClient) ImageBuild(
 	if err != nil {
 		return fmt.Errorf("failed to build image: %w", err)
 	}
-	defer buildRes.Body.Close()
 
-	// Stream the build output to the console.
-	io.Copy(os.Stdout, buildRes.Body)
+	if buildRes.Body != nil {
+		defer buildRes.Body.Close()
+		// Stream the build output to the console.
+		io.Copy(os.Stdout, buildRes.Body)
+	} else {
+		return fmt.Errorf("Build response body is nil for image: %s", registryNameWithTag)
+	}
 
 	log.Infof("Image %s is built locally", registryNameWithTag)
 	return nil
