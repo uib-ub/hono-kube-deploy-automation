@@ -68,7 +68,7 @@ func main() {
 		ContainerRegistry: cfg.Container.Registry,
 		RegistryPassword:  cfg.GitHubToken, // Using GitHub token as the registry password.
 		Dockerfile:        cfg.Container.Dockerfile,
-	})
+	}, nil)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to initialize Docker client")
 		util.NotifyCritical(err)

@@ -39,7 +39,7 @@ func TestImageLifecycle(t *testing.T) {
 			t.Errorf("failed to download repository in test case %d: expected nil, got %v", i, err)
 		}
 
-		dockerClient, err := NewDockerClient(tc.dockerOptions)
+		dockerClient, err := NewDockerClient(tc.dockerOptions, nil)
 		if err != nil {
 			t.Errorf("failed to create docker client in test case %d: expected nil, got %v", i, err)
 		}
