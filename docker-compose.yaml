@@ -16,7 +16,6 @@ services:
       - DOCKER_HOST=${DOCKER_HOST}
     volumes:
       - ${MY_KUBECONFIG}:/root/.kube/config 
-      # - ./internal/config/config.yaml:/app/internal/config/config.yaml
       - /var/run/docker.sock:/var/run/docker.sock  # Mount the Docker socket
     networks:
       - github-deploy-network

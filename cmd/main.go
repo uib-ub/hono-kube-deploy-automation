@@ -18,7 +18,7 @@ func init() {
 		FullTimestamp: true,
 	})
 	// Set log level
-	log.SetLevel(log.DebugLevel)
+	// log.SetLevel(log.DebugLevel)
 }
 
 func main() {

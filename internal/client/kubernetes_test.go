@@ -16,6 +16,7 @@ var kubeTestCases = []struct {
 	kubeClient   *KubeClient
 	resourceYaml []byte
 	namespace    string
+	imageTag     string
 }{
 	{
 		name:       "Deployment",
@@ -39,9 +40,10 @@ var kubeTestCases = []struct {
             spec:
               containers:
               - name: test-container
-                image: nginx
+                image: nginx:test
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "Namespace",
@@ -53,6 +55,7 @@ var kubeTestCases = []struct {
           name: test-namespace
         `),
 		namespace: "",
+		imageTag:  "test",
 	},
 	{
 		name:       "ConfigMap",
@@ -66,6 +69,7 @@ var kubeTestCases = []struct {
           key: value
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "Service",
@@ -84,6 +88,7 @@ var kubeTestCases = []struct {
             targetPort: 9376
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "Ingress",
@@ -107,6 +112,7 @@ var kubeTestCases = []struct {
                       number: 80
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 }
 
@@ -114,13 +120,28 @@ func TestDeployDeleteKubeResource(t *testing.T) {
 	for _, tc := range kubeTestCases {
 		t.Run("DeployResource", func(t *testing.T) {
 			ctx := context.Background()
-
 			// Deploy the resource
-			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace)
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
 			if err != nil {
 				t.Fatalf("Deploy() error = %v", err)
 			}
+			// Validate the labels
+			if tc.name == "Deployment" && len(labels) == 0 {
+				t.Errorf("Deploy() error, expected labels, got none")
+			}
 
+			if tc.name == "Deployment" && replicas != 3 {
+				t.Errorf("Deploy() error, returned replicas = %v, want %v", replicas, 3)
+			}
+		})
+
+		t.Run("UpdateResource", func(t *testing.T) {
+			ctx := context.Background()
+			// Deploy the resource again for updating
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
+			if err != nil {
+				t.Fatalf("Deploy() error = %v", err)
+			}
 			// Validate the labels
 			if tc.name == "Deployment" && len(labels) == 0 {
 				t.Errorf("Deploy() error, expected labels, got none")
@@ -151,7 +172,6 @@ func TestDeployDeleteKubeResource(t *testing.T) {
 			case "Ingress":
 				_, err = tc.kubeClient.NetworkingV1().Ingresses(tc.namespace).Get(ctx, "test-ingress", metav1.GetOptions{})
 			}
-
 			// Expect an error indicating the resource is not found
 			if err == nil {
 				t.Errorf("Expected resource to be deleted, but it still exists")
@@ -246,6 +266,7 @@ var kubeFailureTestCases = []struct {
 	kubeClient   *KubeClient
 	resourceYaml []byte
 	namespace    string
+	imageTag     string
 }{
 	{
 		name:       "UnsupportedResource",
@@ -255,6 +276,7 @@ var kubeFailureTestCases = []struct {
         kind: UnsupportedResource
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "PersistentVolumeClaim type",
@@ -264,12 +286,14 @@ var kubeFailureTestCases = []struct {
         kind: PersistentVolumeClaim
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:         "nil resource yaml and empty namespace",
 		kubeClient:   &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: nil,
 		namespace:    "",
+		imageTag:     "test",
 	},
 	{
 		name:       "no labels and replicas",
@@ -279,6 +303,7 @@ var kubeFailureTestCases = []struct {
         kind: Deployment
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 }
 
@@ -288,7 +313,7 @@ func TestKubeFailure(t *testing.T) {
 			ctx := context.Background()
 
 			// Deploy the resource
-			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace)
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
 			if err == nil {
 				if tc.name == "no labels and replicas" && len(labels) != 0 && replicas != 0 {
 					t.Errorf("Deploy() error, expected 0 labels and 0 replicas, got %v labels and %v replicas", len(labels), replicas)

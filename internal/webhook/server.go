@@ -402,6 +402,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 					data.ctx,
 					[]byte(res),
 					data.namespace,
+					data.imageTag,
 				)
 				if err != nil {
 					return err
@@ -415,15 +416,23 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		}
 	}
 
-	// Trigger GitHub workflow to deploy Kubernetes secrets.
-	if err := s.GithubClient.TriggerWorkFlow(
-		data.ctx,
-		data.ghLoginOwner,
-		data.ghRepoName,
-		data.ghWorkFlowFile,
-		data.ghBranch,
-	); err != nil {
-		return err
+	err := s.retryKubeResources(3, 10*time.Second, func() error {
+		// Trigger GitHub workflow to deploy Kubernetes secrets.
+		err := s.GithubClient.TriggerWorkFlow(
+			data.ctx,
+			data.ghLoginOwner,
+			data.ghRepoName,
+			data.ghWorkFlowFile,
+			data.ghBranch,
+		)
+		if err != nil {
+			log.Warnf("Failed to run Github workflow: %v, retrying...", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to run Github workfow after retries: %v", err)
 	}
 
 	// Deploy the remaining resources.
@@ -438,13 +447,14 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		log.Infof("data image tag: %s", data.imageTag)
 		if strings.Contains(res, "kind: Deployment") && data.imageTag != "latest" {
 			res = strings.Replace(res, "latest", data.imageTag, -1)
-			log.Infof("replaced image tag: %s in res: %s", data.imageTag, res)
+			log.Debugf("replaced image tag: %s in res: %s", data.imageTag, res)
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
 
 		err := s.retryKubeResources(3, 10*time.Second, func() error {
-			labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace)
+			labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace, data.imageTag)
 			if err != nil {
+				log.Warnf("Failed to deploy resource: %v, retrying...", err)
 				return err
 			}
 			if strings.Contains(res, "kind: Deployment") {

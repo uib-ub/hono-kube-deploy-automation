@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -79,6 +80,7 @@ func (k *KubeClient) Deploy(
 	ctx context.Context,
 	resource []byte,
 	ns string,
+	imageTag string,
 ) (map[string]string, int32, error) {
 	// Create a sub-context with a specific timeout to prevent
 	// hanging indefinitely, which can lead to deadlocks or resource leaks
@@ -100,9 +102,11 @@ func (k *KubeClient) Deploy(
 
 	// If the resource doesn't exist, create it; otherwise, update it.
 	if errors.IsNotFound(err) {
-		return k.handleDeployResource(ctx, ns, obj, true)
+		log.Info("Kubernetes resource not found, creating ...")
+		return k.handleDeployResource(imageTag, ctx, ns, obj, true) // true for create
 	}
-	return k.handleDeployResource(ctx, ns, obj, false)
+	log.Info("Kubernetes resource found, updating ...")
+	return k.handleDeployResource(imageTag, ctx, ns, obj, false) // false for update
 }
 
 // Delete removes a Kubernetes resource from the specified namespace.
@@ -176,6 +180,7 @@ func (k *KubeClient) getResource(
 
 // handleDeployResource handles the creation or update of a Kubernetes resource.
 func (k *KubeClient) handleDeployResource(
+	imageTag string,
 	ctx context.Context,
 	ns string,
 	obj metav1.Object,
@@ -187,30 +192,35 @@ func (k *KubeClient) handleDeployResource(
 			create, obj, ctx,
 			k.AppsV1().Deployments(ns).Create,
 			k.AppsV1().Deployments(ns).Update,
+			imageTag,
 		)
 	case NamespaceType:
 		return handleDeployResourceOperation(
 			create, obj, ctx,
 			k.CoreV1().Namespaces().Create,
 			k.CoreV1().Namespaces().Update,
+			imageTag,
 		)
 	case ConfigMapType:
 		return handleDeployResourceOperation(
 			create, obj, ctx,
 			k.CoreV1().ConfigMaps(ns).Create,
 			k.CoreV1().ConfigMaps(ns).Update,
+			imageTag,
 		)
 	case ServiceType:
 		return handleDeployResourceOperation(
 			create, obj, ctx,
 			k.CoreV1().Services(ns).Create,
 			k.CoreV1().Services(ns).Update,
+			imageTag,
 		)
 	case IngressType:
 		return handleDeployResourceOperation(
 			create, obj, ctx,
 			k.NetworkingV1().Ingresses(ns).Create,
 			k.NetworkingV1().Ingresses(ns).Update,
+			imageTag,
 		)
 	default:
 		return nil, 0, fmt.Errorf("unsupported Kubernetes resource kind: %v", reflect.TypeOf(obj))
@@ -258,6 +268,7 @@ func handleDeployResourceOperation[
 	ctx context.Context,
 	createFunc CreateFunc[T],
 	updateFunc UpdateFunc[T],
+	imageTag string,
 ) (map[string]string, int32, error) {
 
 	var err error
@@ -266,6 +277,7 @@ func handleDeployResourceOperation[
 		_, err = createFunc(ctx, obj, metav1.CreateOptions{})
 	} else {
 		log.Infof("Update Kubernetes resource type: %v ...", reflect.TypeOf(obj))
+		triggerRollingRestart(obj, imageTag)
 		_, err = updateFunc(ctx, obj, metav1.UpdateOptions{})
 	}
 	if err != nil {
@@ -276,6 +288,27 @@ func handleDeployResourceOperation[
 		)
 	}
 	return getLabels(obj), getReplicas(obj), nil
+}
+
+// triggerRollingRestart checks if the current image tag in a deployment matches the expceted image tag.
+// If the image tag matches, it triggers a rolling restart by updating an annotation.
+func triggerRollingRestart(obj any, imageTag string) {
+	switch obj := obj.(type) {
+	case DeploymentType:
+		currentImage := obj.Spec.Template.Spec.Containers[0].Image
+		log.Infof("Current image with tag in deployment %s: %s", obj.GetName(), currentImage)
+		log.Infof("Desired image tag in deployment %s: %s", obj.GetName(), imageTag)
+		if strings.Contains(currentImage, imageTag) {
+			log.Infof("Image tag %s already exists in deployment %s", imageTag, obj.GetName())
+			// Initialize the Annotations map if it's nil
+			if obj.Spec.Template.Annotations == nil {
+				obj.Spec.Template.Annotations = make(map[string]string)
+			}
+			// Trigger a rolling restart by updating an annotation
+			obj.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+			log.Infof("Triggering rolling restart for deployment %s", obj.GetName())
+		}
+	}
 }
 
 // getLabels is a generic function that retrieves the labels from a Kubernetes resource object.
