@@ -1,7 +1,6 @@
 # hono-kube-deploy-automation
 [![Build Status](https://github.com/uib-ub/hono-kube-deploy-automation/actions/workflows/testing.yaml/badge.svg?branch=main)](https://github.com/uib-ub/hono-kube-deploy-automation/actions/workflows/testing.yaml)
 
-[![Build Status](https://github.com/jarcoal/httpmock/workflows/Build/badge.svg?branch=v1)](https://github.com/jarcoal/httpmock/actions?query=workflow%3ABuild)
 [![codecov](https://codecov.io/gh/uib-ub/hono-kube-deploy-automation/graph/badge.svg?token=BK0QPWIF3P)](https://codecov.io/gh/uib-ub/hono-kube-deploy-automation)
 
 The purpose of this repository is to provide an automated way to deploy hono-api to Kubernetes using Githhub webhook events.
