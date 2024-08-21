@@ -3,11 +3,17 @@ name: Testing GO code
 on:
   push:
     branches:
-     - main
+      - main
+    paths:
+      - '**/*.go'  # Trigger only if .go files are changed
+      - '**/*.yaml' # Trigger only if .yaml files are changed
 
   pull_request:
     branches:
       - main # Trigger on PRs targeting main only
+    paths:
+      - '**/*.go'  # Trigger only if .go files are changed
+      - '**/*.yaml' # Trigger only if .yaml files are changed
   workflow_dispatch:
 
 jobs:
