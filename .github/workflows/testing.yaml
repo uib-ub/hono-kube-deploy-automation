@@ -1,13 +1,17 @@
-name: Testing GO code
+name: Test
 
 on:
   push:
     branches:
-     - main
+      - main
+    paths-ignore:
+      - 'README.md'
 
   pull_request:
     branches:
       - main # Trigger on PRs targeting main only
+    paths-ignore:
+      - 'README.md'
   workflow_dispatch:
 
 jobs:
