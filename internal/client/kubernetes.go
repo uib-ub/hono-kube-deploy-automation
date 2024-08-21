@@ -290,10 +290,14 @@ func handleDeployResourceOperation[
 	return getLabels(obj), getReplicas(obj), nil
 }
 
+// triggerRollingRestart checks if the current image tag in a deployment matches the expceted image tag.
+// If the image tag matches, it triggers a rolling restart by updating an annotation.
 func triggerRollingRestart(obj any, imageTag string) {
 	switch obj := obj.(type) {
 	case DeploymentType:
 		currentImage := obj.Spec.Template.Spec.Containers[0].Image
+		log.Infof("Current image with tag in deployment %s: %s", obj.GetName(), currentImage)
+		log.Infof("Desired image tag in deployment %s: %s", obj.GetName(), imageTag)
 		if strings.Contains(currentImage, imageTag) {
 			log.Infof("Image tag %s already exists in deployment %s", imageTag, obj.GetName())
 			// Initialize the Annotations map if it's nil

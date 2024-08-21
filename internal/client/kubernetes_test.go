@@ -40,7 +40,7 @@ var kubeTestCases = []struct {
             spec:
               containers:
               - name: test-container
-                image: nginx
+                image: nginx:test
         `),
 		namespace: "default",
 		imageTag:  "test",
@@ -120,13 +120,28 @@ func TestDeployDeleteKubeResource(t *testing.T) {
 	for _, tc := range kubeTestCases {
 		t.Run("DeployResource", func(t *testing.T) {
 			ctx := context.Background()
-
 			// Deploy the resource
 			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
 			if err != nil {
 				t.Fatalf("Deploy() error = %v", err)
 			}
+			// Validate the labels
+			if tc.name == "Deployment" && len(labels) == 0 {
+				t.Errorf("Deploy() error, expected labels, got none")
+			}
 
+			if tc.name == "Deployment" && replicas != 3 {
+				t.Errorf("Deploy() error, returned replicas = %v, want %v", replicas, 3)
+			}
+		})
+
+		t.Run("UpdateResource", func(t *testing.T) {
+			ctx := context.Background()
+			// Deploy the resource again for updating
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
+			if err != nil {
+				t.Fatalf("Deploy() error = %v", err)
+			}
 			// Validate the labels
 			if tc.name == "Deployment" && len(labels) == 0 {
 				t.Errorf("Deploy() error, expected labels, got none")
@@ -157,7 +172,6 @@ func TestDeployDeleteKubeResource(t *testing.T) {
 			case "Ingress":
 				_, err = tc.kubeClient.NetworkingV1().Ingresses(tc.namespace).Get(ctx, "test-ingress", metav1.GetOptions{})
 			}
-
 			// Expect an error indicating the resource is not found
 			if err == nil {
 				t.Errorf("Expected resource to be deleted, but it still exists")
