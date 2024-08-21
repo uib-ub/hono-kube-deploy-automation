@@ -13,18 +13,18 @@ func NotifyLog(format string, args ...any) {
 }
 
 // NotifyWarning sends a warning message to Rollbar for logging purposes.
-func NotifyWarning(args ...any) {
-	rollbar.Warning(args)
+func NotifyWarning(format string, args ...any) {
+	rollbar.Warning(fmt.Sprintf(format, args...))
 }
 
 // NotifyError sends an error message to Rollbar for logging purposes.
 // This function should be used to report non-critical errors.
-func NotifyError(args ...any) {
-	rollbar.Error(args)
+func NotifyError(err error) {
+	rollbar.Error(err)
 }
 
 // NotifyCritical sends a critical error message to Rollbar.
 // This function should be used to report errors that are considered critical.
-func NotifyCritical(args ...any) {
-	rollbar.Critical(args)
+func NotifyCritical(err error) {
+	rollbar.Critical(err)
 }

@@ -16,6 +16,7 @@ var kubeTestCases = []struct {
 	kubeClient   *KubeClient
 	resourceYaml []byte
 	namespace    string
+	imageTag     string
 }{
 	{
 		name:       "Deployment",
@@ -42,6 +43,7 @@ var kubeTestCases = []struct {
                 image: nginx
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "Namespace",
@@ -53,6 +55,7 @@ var kubeTestCases = []struct {
           name: test-namespace
         `),
 		namespace: "",
+		imageTag:  "test",
 	},
 	{
 		name:       "ConfigMap",
@@ -66,6 +69,7 @@ var kubeTestCases = []struct {
           key: value
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "Service",
@@ -84,6 +88,7 @@ var kubeTestCases = []struct {
             targetPort: 9376
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "Ingress",
@@ -107,6 +112,7 @@ var kubeTestCases = []struct {
                       number: 80
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 }
 
@@ -116,7 +122,7 @@ func TestDeployDeleteKubeResource(t *testing.T) {
 			ctx := context.Background()
 
 			// Deploy the resource
-			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace)
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
 			if err != nil {
 				t.Fatalf("Deploy() error = %v", err)
 			}
@@ -246,6 +252,7 @@ var kubeFailureTestCases = []struct {
 	kubeClient   *KubeClient
 	resourceYaml []byte
 	namespace    string
+	imageTag     string
 }{
 	{
 		name:       "UnsupportedResource",
@@ -255,6 +262,7 @@ var kubeFailureTestCases = []struct {
         kind: UnsupportedResource
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:       "PersistentVolumeClaim type",
@@ -264,12 +272,14 @@ var kubeFailureTestCases = []struct {
         kind: PersistentVolumeClaim
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 	{
 		name:         "nil resource yaml and empty namespace",
 		kubeClient:   &KubeClient{KubernetesInterface: fake.NewSimpleClientset()}, // a fake kubernetes clientset
 		resourceYaml: nil,
 		namespace:    "",
+		imageTag:     "test",
 	},
 	{
 		name:       "no labels and replicas",
@@ -279,6 +289,7 @@ var kubeFailureTestCases = []struct {
         kind: Deployment
         `),
 		namespace: "default",
+		imageTag:  "test",
 	},
 }
 
@@ -288,7 +299,7 @@ func TestKubeFailure(t *testing.T) {
 			ctx := context.Background()
 
 			// Deploy the resource
-			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace)
+			labels, replicas, err := tc.kubeClient.Deploy(ctx, tc.resourceYaml, tc.namespace, tc.imageTag)
 			if err == nil {
 				if tc.name == "no labels and replicas" && len(labels) != 0 && replicas != 0 {
 					t.Errorf("Deploy() error, expected 0 labels and 0 replicas, got %v labels and %v replicas", len(labels), replicas)
