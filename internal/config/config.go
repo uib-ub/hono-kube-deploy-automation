@@ -82,8 +82,16 @@ func NewConfig() (*Config, error) {
 	}
 
 	// Validate that required configuration fields are set.
-	if config.WebhookSecret == "" || config.GitHubToken == "" || config.RollbarToken == "" {
-		return nil, fmt.Errorf("missing required configuration secret or token")
+	if config.WebhookSecret == "" {
+		return nil, fmt.Errorf("missing webhook secret in the configuration")
+	}
+
+	if config.GitHubToken == "" {
+		return nil, fmt.Errorf("missing GitHub token in the configuration")
+	}
+
+	if config.RollbarToken == "" {
+		return nil, fmt.Errorf("missing Rollbar token in the configuration")
 	}
 	// Resolve the local repository path.
 	localRepoDir, err := getLocalRepoPath(config.Github.LocalRepo)

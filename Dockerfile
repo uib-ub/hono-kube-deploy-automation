@@ -31,6 +31,7 @@ RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -
 WORKDIR /app
 
 COPY --from=go-builder /app/github-deploy-hono /github-deploy-hono
+COPY --from=go-builder /app/internal/config/config.yaml /app/internal/config/config.yaml
 
 # Make sure your Go application is executable
 RUN chmod +x /github-deploy-hono
