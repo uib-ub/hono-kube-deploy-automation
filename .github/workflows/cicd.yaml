@@ -31,14 +31,6 @@ jobs:
       with:
         go-version: '1.22'
 
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
     - name: Install dependencies
       run: |
         go mod tidy
@@ -128,19 +120,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: deploy Kubernetes secrets to hono api dev environment
         run: |
-          # create secret regcred for kubernetes to pull image from private registry on Github
-          if ! kubectl get secret regcred; then\
-            # create the secret when no secret regcred is found
-            kubectl create secret docker-registry regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
+          # create secret github-deploy-regcred for kubernetes to pull image from private registry on Github
+          if ! kubectl get secret github-deploy-regcred; then\
+            # create the secret when no secret github-deploy-regcred is found
+            kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
           else 
-            # check if kubernetes secret regcred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
-            existing_pass=$(kubectl get secret regcred --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq -r '.auths["ghcr.io"].password')
+            # check if kubernetes secret github-deploy-regcred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
+            existing_pass=$(kubectl get secret github-deploy-regcred --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq -r '.auths["ghcr.io"].password')
             if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
               echo "Updating kubernetes secret as password from Github repository secret do not match."
-              kubectl delete secret regcred
-              kubectl create secret docker-registry regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
+              kubectl delete secret github-deploy-regcred
+              kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
             else
-              echo "Secret regcred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
+              echo "Secret github-deploy-regcred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
             fi
           fi
 
