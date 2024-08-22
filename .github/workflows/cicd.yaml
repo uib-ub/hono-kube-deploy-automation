@@ -1,0 +1,193 @@
+name: CICD
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+
+  pull_request:
+    branches:
+      - main # Trigger on PRs targeting main only
+    paths-ignore:
+      - 'README.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: |
+        go mod tidy
+        go mod download
+
+    - name: Run tests
+      env:
+        WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
+        ROLLBAR_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
+        LOCAL_REPO_SRC: ${{ runner.temp }}/app
+      run: |
+        go test -v -race -coverprofile=coverage.out ./internal/client/
+        go tool cover -html=coverage.out -o coverage.html
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage.html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: coverage.out
+        flags: unittests
+        name: code-coverage-report
+        fail_ci_if_error: true
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v3
+      with:
+        context: .
+        file: Dockerfile
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-secrets:
+    needs: [test, build-and-push]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-kube-secrets
+    steps:
+      - name: Kubectl tool installer
+        uses: Azure/setup-kubectl@v3
+      - name: Setup kubectl
+        env:
+          MICROK8S_CONFIG: ${{ secrets.MICROK8S_CONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${MICROK8S_CONFIG}" | base64 --decode > $HOME/.kube/config
+      - name: Check kubectl get node
+        run: kubectl get nodes -o wide
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: deploy Kubernetes secrets to hono api dev environment
+        run: |
+          # create secret regcred for kubernetes to pull image from private registry on Github
+          if ! kubectl get secret regcred; then\
+            # create the secret when no secret regcred is found
+            kubectl create secret docker-registry regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
+          else 
+            # check if kubernetes secret regcred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
+            existing_pass=$(kubectl get secret regcred --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq -r '.auths["ghcr.io"].password')
+            if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
+              echo "Updating kubernetes secret as password from Github repository secret do not match."
+              kubectl delete secret regcred
+              kubectl create secret docker-registry regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
+            else
+              echo "Secret regcred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
+            fi
+          fi
+
+          # create secret for webhook to use as environment variables defined in deploy.yaml
+          if ! kubectl get secret webhook-cred; then
+            # create the secret when no webhook-cred is found
+            kubectl create secret generic webhook-cred --from-literal=webhook-secret=${{ secrets.WEBHOOK_SECRET }}
+          else
+            # check if kubernetes secret webhook-cred needs an update, and update it when it is not the same as given secret WEBHOOK_SECRET from Github repository secret
+            existing_pass=$(kubectl get secret webhook-cred --template='{{index .data "webhook-secret" | base64decode}}')
+            if [[ "$existing_pass" != "${{ secrets.WEBHOOK_SECRET }}" ]]; then
+              echo "Updating kubernetes secret webhook-cred, as password from Github repository secret WEBHOOK_SECRET do not match."
+              kubectl delete secret webhook-cred
+              kubectl create secret generic webhook-cred --from-literal=webhook-secret=${{ secrets.WEBHOOK_SECRET }}
+            else
+              echo "Secret webhook-cred already exists, and it is the same as WEBHOOK_SECRET Github repository secret, skipping."
+            fi
+          fi
+          
+          # create secret for github token to use as environment variables defined in deploy.yaml
+          if ! kubectl get secret githhub-cred; then
+            # create the secret when no github-cred is found
+            kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
+          else
+            # check if kubernetes secret github-cred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
+            existing_pass=$(kubectl get secret github-cred --template='{{index .data "github-token" | base64decode}}')
+            if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
+              echo "Updating kubernetes secret github-cred, as password from Github repository secret GHCR_PAT do not match."
+              kubectl delete secret github-cred
+              kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
+            else
+              echo "Secret github-cred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
+            fi
+          fi
+
+          # create secret for rollbar token to use as environment variables defined in deploy.yaml
+          if ! kubectl get secret rollbar-cred; then
+            # create the secret when no rollbar-cred is found
+            kubectl create secret generic rollbar-cred --from-literal=rollbar-token=${{ secrets.ROLLBAR_TOKEN }}
+          else
+            # check if kubernetes secret rollbar-cred needs an update, and update it when it is not the same as given secret ROLLBAR_TOKEN from rollbar repository secret
+            existing_pass=$(kubectl get secret rollbar-cred --template='{{index .data "rollbar-token" | base64decode}}')
+            if [[ "$existing_pass" != "${{ secrets.ROLLBAR_TOKEN }}" ]]; then
+              echo "Updating kubernetes secret rollbar-cred, as password from rollbar repository secret ROLLBAR_TOKEN do not match."
+              kubectl delete secret rollbar-cred
+              kubectl create secret generic rollbar-cred --from-literal=rollbar-token=${{ secrets.ROLLBAR_TOKEN }}
+            else
+              echo "Secret rollbar-cred already exists, and it is the same as ROLLBAR_TOKEN rollbar repository secret, skipping."
+            fi
+          fi

@@ -26,19 +26,19 @@ spec:
           - name: GITHUB_TOKEN
             valueFrom:
               secretKeyRef:
-                name: github-deploy-hono
+                name: github-cred 
                 key: github-token
                 optional: false
           - name: WEBHOOK_SECRET
             valueFrom:
               secretKeyRef:
-                name: github-deploy-hono
+                name: webhook-cred
                 key: webhook-secret
                 optional: false
           - name: ROLLBAR_TOKEN
             valueFrom:
               secretKeyRef:
-                name: github-deploy-hono
+                name: rollbar-cred
                 key: rollbar-token
                 optional: false
         securityContext:
@@ -56,6 +56,9 @@ spec:
           mountPath: /lib/modules
         - name: docker-sock
           mountPath: /var/run/docker.sock
+      imagePullSecrets:
+      - name: regcred
+      restartPolicy: Always
       volumes:
       - name: lib-modules
         hostPath:
