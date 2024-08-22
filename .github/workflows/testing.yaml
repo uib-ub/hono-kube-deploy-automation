@@ -60,9 +60,13 @@ jobs:
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
     permissions:
       contents: read
       packages: write
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -78,6 +82,7 @@ jobs:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v3
       with:
