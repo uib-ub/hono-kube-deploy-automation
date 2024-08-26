@@ -174,4 +174,38 @@ jobs:
           manage_kube_secret "webhook-cred" "webhook-secret" "${{ secrets.WEBHOOK_SECRET }}"
           manage_kube_secret "github-cred" "github-token" "${{ secrets.GHCR_PAT }}"
           manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
-  
+
+  deploy-app:
+    needs: [test, build-and-push, deploy-secrets]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-kube-deploy
+    steps: 
+      - name: Kubectl tool installer
+        uses: Azure/setup-kubectl@v3
+      - name: Setup kubectl
+        env:
+          MICROK8S_CONFIG: ${{ secrets.MICROK8S_CONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${MICROK8S_CONFIG}" | base64 --decode > $HOME/.kube/config
+      - name: Check kubectl get node
+        run: kubectl get nodes -o wide
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: deploy application to kubernetes on NREC
+        run: |
+          DEPLOYMENT_NAME="github-deploy-hono" # Replace with your actual deployment name
+          NAMESPACE="default" # Replace with your actual namespace if different
+          echo "apply all resources"
+          kubectl apply -f deployment/deploy.yaml
+          # Check if the deployment already exists
+          if kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+            echo "Deployment $DEPLOYMENT_NAME already exists. Performing rolling restart..."
+            kubectl rollout restart deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE"
+          else
+            echo "Deployment $DEPLOYMENT_NAME does not exist. Applying deployment..."
+            kubectl apply -f deployment/deploy.yaml
+          fi
