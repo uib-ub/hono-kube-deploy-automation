@@ -199,8 +199,6 @@ jobs:
         run: |
           DEPLOYMENT_NAME="github-deploy-hono" # Replace with your actual deployment name
           NAMESPACE="default" # Replace with your actual namespace if different
-          echo "apply all resources"
-          kubectl apply -f deployment/deploy.yaml
           # Check if the deployment already exists
           if kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
             echo "Deployment $DEPLOYMENT_NAME already exists. Performing rolling restart..."
