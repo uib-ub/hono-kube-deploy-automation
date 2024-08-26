@@ -15,7 +15,7 @@ spec:
       serviceAccountName: github-deploy-hono
       containers:
       - name: github-deploy-hono
-        image: wruiwr/github-deploy-hono:v1.0.0
+        image: ghcr.io/uib-ub/uib-ub/hono-kube-deploy-automation:latest
         imagePullPolicy: Always
         ports:
         - name: http-port
