@@ -103,8 +103,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-kube-secrets
-    env:
-      REGISTRY: ghcr.io
     steps:
       - name: Kubectl tool installer
         uses: Azure/setup-kubectl@v3
@@ -121,6 +119,8 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: deploy Kubernetes secrets to hono api dev environment
+        env:
+          REGISTRY: ghcr.io
         run: |
           function manage_kube_secret {
             local secret_name=$1
@@ -132,7 +132,7 @@ jobs:
               # Special handling for Github container registry secret
               if ! kubectl get secret "$secret_name"; then
                 echo "Creating Github container registry secret $secret_name..."
-                kubectl create secret "$secret_typ"e" "$secret_name" \
+                kubectl create secret "$secret_type" "$secret_name" \
                   --docker-username=${{ github.actor }} \
                   --docker-password="$secret_value" \
                   --docker-server=${{ env.REGISTRY }}
