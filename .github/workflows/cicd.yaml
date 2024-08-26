@@ -174,3 +174,4 @@ jobs:
           manage_kube_secret "webhook-cred" "webhook-secret" "${{ secrets.WEBHOOK_SECRET }}"
           manage_kube_secret "github-cred" "github-token" "${{ secrets.GHCR_PAT }}"
           manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
+  
