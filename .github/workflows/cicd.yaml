@@ -103,6 +103,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-kube-secrets
+    env:
+      REGISTRY: ghcr.io
     steps:
       - name: Kubectl tool installer
         uses: Azure/setup-kubectl@v3
@@ -120,66 +122,120 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: deploy Kubernetes secrets to hono api dev environment
         run: |
-          # create secret github-deploy-regcred for kubernetes to pull image from private registry on Github
-          if ! kubectl get secret github-deploy-regcred; then
-            # create the secret when no secret github-deploy-regcred is found
-            kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
-          else 
-            # check if kubernetes secret github-deploy-regcred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
-            existing_pass=$(kubectl get secret github-deploy-regcred --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq -r '.auths["ghcr.io"].password')
-            if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
-              echo "Updating kubernetes secret as password from Github repository secret do not match."
-              kubectl delete secret github-deploy-regcred
-              kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
-            else
-              echo "Secret github-deploy-regcred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
-            fi
-          fi
+          function manage_kube_secret {
+            local secret_name=$1
+            local secret_key=$2
+            local secret_value=$3
+            local secret_type=${4:-generic}
 
-          # create secret for webhook to use as environment variables defined in deploy.yaml
-          if ! kubectl get secret webhook-cred; then
-            # create the secret when no webhook-cred is found
-            kubectl create secret generic webhook-cred --from-literal=webhook-secret=${{ secrets.WEBHOOK_SECRET }}
-          else
-            # check if kubernetes secret webhook-cred needs an update, and update it when it is not the same as given secret WEBHOOK_SECRET from Github repository secret
-            existing_pass=$(kubectl get secret webhook-cred --template='{{index .data "webhook-secret" | base64decode}}')
-            if [[ "$existing_pass" != "${{ secrets.WEBHOOK_SECRET }}" ]]; then
-              echo "Updating kubernetes secret webhook-cred, as password from Github repository secret WEBHOOK_SECRET do not match."
-              kubectl delete secret webhook-cred
-              kubectl create secret generic webhook-cred --from-literal=webhook-secret=${{ secrets.WEBHOOK_SECRET }}
+            if [ "$secret_name" == "github-deploy-regcred" ]; then
+              # Special handling for Github container registry secret
+              if ! kubectl get secret "$secret_name"; then
+                echo "Creating Github container registry secret $secret_name..."
+                kubectl create secret "$secret_typ"e" "$secret_name" \
+                  --docker-username=${{ github.actor }} \
+                  --docker-password="$secret_value" \
+                  --docker-server=${{ env.REGISTRY }}
+              else
+                echo "Checking if Github container registry secret $secret_name needs to be updated..."
+                existing_pass=$(kubectl get secret "$secret_name" --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq -r '.auths["ghcr.io"].password')
+                if [[ "$existing_pass" != "$secret_value" ]]; then
+                  echo "Updating Github registry secret $secret_name..."
+                  kubectl delete secret "$secret_name"
+                  kubectl create secret "$secret_type" "$secret_name" \
+                    --docker-username=${{ github.actor }} \
+                    --docker-password="$secret_value" \
+                    --docker-server=${{ env.REGISTRY }}
+                else
+                  echo "Github container registry secret $secret_name is up-to-date, no action required."
+                fi
+              fi
             else
-              echo "Secret webhook-cred already exists, and it is the same as WEBHOOK_SECRET Github repository secret, skipping."
+              # General handling for other secrets using passed parameters
+              if ! kubectl get secret "$secret_name"; then
+                echo "Creating secret $secret_name..."
+                kubectl create secret "$secret_type" "$secret_name" --from-literal="$secret_key"="$secret_value"
+              else
+                echo "Checking if secret $secret_name needs to be updated..."
+                existing_value=$(kubectl get secret "$secret_name" --template="{{index .data \"$secret_key\" | base64decode}}")
+                if [[ "$existing_value" != "$secret_value" ]]; then
+                  echo "Updating secret $secret_name..."
+                  kubectl delete secret "$secret_name"
+                  kubectl create secret "$secret_type" "$secret_name" --from-literal="$secret_key"="$secret_value"
+                else
+                  echo "Secret $secret_name is up-to-date, no action required."
+                fi
+              fi
             fi
-          fi
-          
-          # create secret for github token to use as environment variables defined in deploy.yaml
-          if ! kubectl get secret github-cred; then
-            # create the secret when no github-cred is found
-            kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
-          else
-            # check if kubernetes secret github-cred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
-            existing_pass=$(kubectl get secret github-cred --template='{{index .data "github-token" | base64decode}}')
-            if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
-              echo "Updating kubernetes secret github-cred, as password from Github repository secret GHCR_PAT do not match."
-              kubectl delete secret github-cred
-              kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
-            else
-              echo "Secret github-cred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
-            fi
-          fi
+          }
 
-          # create secret for rollbar token to use as environment variables defined in deploy.yaml
-          if ! kubectl get secret rollbar-cred; then
-            # create the secret when no rollbar-cred is found
-            kubectl create secret generic rollbar-cred --from-literal=rollbar-token=${{ secrets.ROLLBAR_TOKEN }}
-          else
-            # check if kubernetes secret rollbar-cred needs an update, and update it when it is not the same as given secret ROLLBAR_TOKEN from rollbar repository secret
-            existing_pass=$(kubectl get secret rollbar-cred --template='{{index .data "rollbar-token" | base64decode}}')
-            if [[ "$existing_pass" != "${{ secrets.ROLLBAR_TOKEN }}" ]]; then
-              echo "Updating kubernetes secret rollbar-cred, as password from rollbar repository secret ROLLBAR_TOKEN do not match."
-              kubectl delete secret rollbar-cred
-              kubectl create secret generic rollbar-cred --from-literal=rollbar-token=${{ secrets.ROLLBAR_TOKEN }}
-            else
-              echo "Secret rollbar-cred already exists, and it is the same as ROLLBAR_TOKEN rollbar repository secret, skipping."
-            fi
-          fi
+          # Handle secrets using the generic function
+          manage_kube_secret "github-deploy-regcred" ".dockerconfigjson" "${{ secrets.GHCR_PAT }}" "docker-registry"
+          manage_kube_secret "webhook-cred" "webhook-secret" "${{ secrets.WEBHOOK_SECRET }}"
+          manage_kube_secret "github-cred" "github-token" "${{ secrets.GHCR_PAT }}"
+          manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
+
+
+       #   # create secret github-deploy-regcred for kubernetes to pull image from private registry on Github
+       #   if ! kubectl get secret github-deploy-regcred; then
+       #     # create the secret when no secret github-deploy-regcred is found
+       #     kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
+       #   else 
+       #     # check if kubernetes secret github-deploy-regcred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
+       #     existing_pass=$(kubectl get secret github-deploy-regcred --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq -r '.auths["ghcr.io"].password')
+       #     if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
+       #       echo "Updating kubernetes secret as password from Github repository secret do not match."
+       #       kubectl delete secret github-deploy-regcred
+       #       kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
+       #     else
+       #       echo "Secret github-deploy-regcred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
+       #     fi
+       #   fi
+
+       #   # create secret for webhook to use as environment variables defined in deploy.yaml
+       #   if ! kubectl get secret webhook-cred; then
+       #     # create the secret when no webhook-cred is found
+       #     kubectl create secret generic webhook-cred --from-literal=webhook-secret=${{ secrets.WEBHOOK_SECRET }}
+       #   else
+       #     # check if kubernetes secret webhook-cred needs an update, and update it when it is not the same as given secret WEBHOOK_SECRET from Github repository secret
+       #     existing_pass=$(kubectl get secret webhook-cred --template='{{index .data "webhook-secret" | base64decode}}')
+       #     if [[ "$existing_pass" != "${{ secrets.WEBHOOK_SECRET }}" ]]; then
+       #       echo "Updating kubernetes secret webhook-cred, as password from Github repository secret WEBHOOK_SECRET do not match."
+       #       kubectl delete secret webhook-cred
+       #       kubectl create secret generic webhook-cred --from-literal=webhook-secret=${{ secrets.WEBHOOK_SECRET }}
+       #     else
+       #       echo "Secret webhook-cred already exists, and it is the same as WEBHOOK_SECRET Github repository secret, skipping."
+       #     fi
+       #   fi
+       #   
+       #   # create secret for github token to use as environment variables defined in deploy.yaml
+       #   if ! kubectl get secret github-cred; then
+       #     # create the secret when no github-cred is found
+       #     kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
+       #   else
+       #     # check if kubernetes secret github-cred needs an update, and update it when it is not the same as given secret GHCR_PAT from Github repository secret
+       #     existing_pass=$(kubectl get secret github-cred --template='{{index .data "github-token" | base64decode}}')
+       #     if [[ "$existing_pass" != "${{ secrets.GHCR_PAT }}" ]]; then
+       #       echo "Updating kubernetes secret github-cred, as password from Github repository secret GHCR_PAT do not match."
+       #       kubectl delete secret github-cred
+       #       kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
+       #     else
+       #       echo "Secret github-cred already exists, and it is the same as GHCR_PAT Github repository secret, skipping."
+       #     fi
+       #   fi
+
+       #   # create secret for rollbar token to use as environment variables defined in deploy.yaml
+       #   if ! kubectl get secret rollbar-cred; then
+       #     # create the secret when no rollbar-cred is found
+       #     kubectl create secret generic rollbar-cred --from-literal=rollbar-token=${{ secrets.ROLLBAR_TOKEN }}
+       #   else
+       #     # check if kubernetes secret rollbar-cred needs an update, and update it when it is not the same as given secret ROLLBAR_TOKEN from rollbar repository secret
+       #     existing_pass=$(kubectl get secret rollbar-cred --template='{{index .data "rollbar-token" | base64decode}}')
+       #     if [[ "$existing_pass" != "${{ secrets.ROLLBAR_TOKEN }}" ]]; then
+       #       echo "Updating kubernetes secret rollbar-cred, as password from rollbar repository secret ROLLBAR_TOKEN do not match."
+       #       kubectl delete secret rollbar-cred
+       #       kubectl create secret generic rollbar-cred --from-literal=rollbar-token=${{ secrets.ROLLBAR_TOKEN }}
+       #     else
+       #       echo "Secret rollbar-cred already exists, and it is the same as ROLLBAR_TOKEN rollbar repository secret, skipping."
+       #     fi
+       #   fi
