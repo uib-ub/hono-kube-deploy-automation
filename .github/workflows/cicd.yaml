@@ -121,7 +121,7 @@ jobs:
       - name: deploy Kubernetes secrets to hono api dev environment
         run: |
           # create secret github-deploy-regcred for kubernetes to pull image from private registry on Github
-          if ! kubectl get secret github-deploy-regcred; then\
+          if ! kubectl get secret github-deploy-regcred; then
             # create the secret when no secret github-deploy-regcred is found
             kubectl create secret docker-registry github-deploy-regcred --docker-username=${{ github.actor }} --docker-password=${{ secrets.GHCR_PAT }} --docker-server=ghcr.io
           else 
