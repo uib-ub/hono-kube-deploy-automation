@@ -153,7 +153,7 @@ jobs:
           fi
           
           # create secret for github token to use as environment variables defined in deploy.yaml
-          if ! kubectl get secret githhub-cred; then
+          if ! kubectl get secret github-cred; then
             # create the secret when no github-cred is found
             kubectl create secret generic github-cred --from-literal=github-token=${{ secrets.GHCR_PAT }}
           else
