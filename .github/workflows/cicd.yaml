@@ -203,6 +203,7 @@ jobs:
           environment: 'production'
           version: 'latest'
           status: 'started'
+          local_username: ${{ secrets.ROLLBAR_LOCAL_USERNAME }}
         env:
           ROLLBAR_ACCESS_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
 
@@ -226,6 +227,7 @@ jobs:
           environment: 'production'
           version: 'latest'
           status: 'succeeded'
+          local_username: ${{ secrets.ROLLBAR_LOCAL_USERNAME }}
         env:
           ROLLBAR_ACCESS_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
           DEPLOY_ID: ${{ steps.rollbar_pre_deploy.outputs.deploy_id }}
