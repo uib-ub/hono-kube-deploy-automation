@@ -397,7 +397,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "Namespace") {
 			log.Debugf("found Namespace file:\n%s\n", res)
-			err := s.retryKubeResources(3, 10*time.Second, func() error {
+			err := s.retryKubeResources(5, 10*time.Second, func() error {
 				_, _, err := s.KubeClient.Deploy(
 					data.ctx,
 					[]byte(res),
@@ -416,7 +416,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		}
 	}
 
-	err := s.retryKubeResources(3, 10*time.Second, func() error {
+	err := s.retryKubeResources(5, 10*time.Second, func() error {
 		// Trigger GitHub workflow to deploy Kubernetes secrets.
 		err := s.GithubClient.TriggerWorkFlow(
 			data.ctx,
@@ -451,7 +451,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
 
-		err := s.retryKubeResources(3, 10*time.Second, func() error {
+		err := s.retryKubeResources(5, 10*time.Second, func() error {
 			labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace, data.imageTag)
 			if err != nil {
 				log.Warnf("Failed to deploy resource: %v, retrying...", err)
@@ -490,7 +490,7 @@ func (s *Server) cleanupKubeResources(wg *sync.WaitGroup, errChan chan<- error, 
 			res = strings.Replace(res, "latest", data.imageTag, -1)
 		}
 		log.Debugf("Delete resource:\n%s\n", res)
-		err := s.retryKubeResources(3, 5*time.Second, func() error {
+		err := s.retryKubeResources(5, 5*time.Second, func() error {
 			return s.KubeClient.Delete(data.ctx, []byte(res), data.namespace)
 		})
 		if err != nil {
