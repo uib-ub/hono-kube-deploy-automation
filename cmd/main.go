@@ -37,9 +37,9 @@ func main() {
 	}
 	// Log the loaded configuration for debugging purposes.
 	log.WithFields(log.Fields{
-		"RollBarToken":   cfg.RollbarToken,
-		"GitHubToken":    cfg.GitHubToken,
-		"WebhookSecret":  cfg.WebhookSecret,
+		//	"RollBarToken":   cfg.RollbarToken,
+		//	"GitHubToken":    cfg.GitHubToken,
+		//	"WebhookSecret":  cfg.WebhookSecret,
 		"KubeConfig":     cfg.KubeConfig,
 		"LocalRepo":      cfg.Github.LocalRepo,
 		"WorkflowPrefix": cfg.Github.WorkflowPrefix,
