@@ -55,7 +55,7 @@ func main() {
 	// Set up Rollbar for monitoring errors and logging.
 	rollbar.SetToken(cfg.RollbarToken)
 	rollbar.SetEnvironment("production")
-	rollbar.SetCodeVersion("1.0.0")
+	rollbar.SetCodeVersion("latest")
 	// Ensure Rollbar is flushed and closed on exit.
 	defer rollbar.Wait()
 	defer rollbar.Close()
