@@ -156,11 +156,6 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 		for _, label := range event.GetPullRequest().Labels {
 			log.Infof("Current pull request label: %s", label.GetName())
 			if strings.Contains(label.GetName(), "deploy-hono-test") {
-				if label.GetName() == "type: deploy-hono-test" {
-					log.Infof("Pull request label: %s is the same as condition", label.GetName())
-				} else {
-					log.Infof("tag not the same")
-				}
 				// Clone or pull the GitHub repository to the local source path.
 				if err := s.getGithubRepo(data.ghRepoFullName, data.ghBranch); err != nil {
 					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
@@ -220,6 +215,7 @@ func (s *Server) extractEventData(event any, namespace string) (*eventData, erro
 		data.ghLoginOwner = event.GetRepo().GetOwner().GetLogin()
 		data.ghRepoFullName = event.GetRepo().GetFullName()
 		data.ghBranch = event.GetPullRequest().GetBase().GetRef()
+		data.ghRepoName = event.GetRepo().GetName()
 		data.imageTag = "latest" // Use "latest" as the image tag.
 	default:
 		return nil, fmt.Errorf("unsupported event type: %v", reflect.TypeOf(event))
