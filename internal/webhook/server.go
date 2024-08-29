@@ -154,8 +154,8 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 		util.NotifyLog("Pull request merged to %s branch", data.ghBranch)
 		// Get pull request label and check if it is "deploy-api-test"
 		for _, label := range event.GetPullRequest().Labels {
-			if label.GetName() == "deploy-api-test" {
-				log.Infof("Pull request label: %s", label.GetName())
+			log.Infof("Current pull request label: %s", label.GetName())
+			if label.GetName() == "type: deploy-api-test" {
 				// Clone or pull the GitHub repository to the local source path.
 				if err := s.getGithubRepo(data.ghRepoFullName, data.ghBranch); err != nil {
 					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
