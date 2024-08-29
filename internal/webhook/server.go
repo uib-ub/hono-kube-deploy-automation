@@ -155,7 +155,12 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 		// Get pull request label and check if it is "deploy-api-test"
 		for _, label := range event.GetPullRequest().Labels {
 			log.Infof("Current pull request label: %s", label.GetName())
-			if label.GetName() == "type: deploy-api-test" {
+			if strings.Contains(label.GetName(), "deploy-hono-test") {
+				if label.GetName() == "type: deploy-hono-test" {
+					log.Infof("Pull request label: %s is the same as condition", label.GetName())
+				} else {
+					log.Infof("tag not the same")
+				}
 				// Clone or pull the GitHub repository to the local source path.
 				if err := s.getGithubRepo(data.ghRepoFullName, data.ghBranch); err != nil {
 					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
