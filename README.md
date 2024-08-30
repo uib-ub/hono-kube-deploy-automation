@@ -95,6 +95,7 @@ flowchart TB
           Y
         end
     end
+```
 
 ## Configuration and secrets
 
