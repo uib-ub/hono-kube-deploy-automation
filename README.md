@@ -106,34 +106,29 @@ The secrets and environment variables are handled by Github repository secrets a
 Key secret:
 
 - GitHub:
-
--- `GitHubToken`: GitHub personal access token for authentication.
--- `WebhookSecret`: Secret for verifying GitHub webhook payloads.
+  - `GitHubToken`: GitHub personal access token for authentication.
+  - `WebhookSecret`: Secret for verifying GitHub webhook payloads.
 
 - Rollbar:
-
--- `RollbarToken`: Token for Rollbar error logging.
+  - `RollbarToken`: Token for Rollbar error logging.
 
 Key configuration:
 
 - Github:
-
--- `workflowPrefix`: the prefix of the github workflow name to deploy secrets to kubernetes, such as "deploy-kube-secrets"
--- `localRep`: The local repository location, such as "app"
--- `packageType`: the Github package type, which is "container"
+  - `workflowPrefix`: the prefix of the GitHub workflow name to deploy secrets to Kubernetes, such as "deploy-kube-secrets"
+  - `localRep`: The local repository location, such as "app"
+  - `packageType`: the GitHub package type, which is "container"
 
 - Kubernetes:
-
--- `KubeConfig`: Path to the locall kubeconfig file, if we run this Go applicaiton outside of Kubernetes cluster.
--- `DevNamespace`: Kubernetes namespace for the development environment.
--- `TestNamespace`: Kubernetes namespace for the test environment.
--- `Resource`: Path to Kubernetes resource configuration directory ("microk8s-hono-api" for hono api).
+  - `KubeConfig`: Path to the local kubeconfig file, if we run this Go application outside of the Kubernetes cluster.
+  - `DevNamespace`: Kubernetes namespace for the development environment.
+  - `TestNamespace`: Kubernetes namespace for the test environment.
+  - `Resource`: Path to Kubernetes resource configuration directory ("microk8s-hono-api" for hono api).
 
 - Container:
-
--- `Dockerfile`: Dockerfile file name.
--- `Registry`: container registry to push Docker images.
--- `ImageSuffix`: Suffix to append to Docker images.
+  - `Dockerfile`: Dockerfile file name.
+  - `Registry`: container registry to push Docker images.
+  - `ImageSuffix`: Suffix to append to Docker images.
 
 ## Local Development with Docker Compose
 
@@ -175,11 +170,10 @@ Forwarding https://xxx.ngrok-free.app -> http://localhost:8080
 ```
 
 4. Copy `https://xxx.ngrok-free.app` to the Github webhook settings:
-
--- for Payload URL, we give: "https://xxx.ngrok-free.app/webhook"
--- Content type: "application/json"
--- create a webhook secret and use it in CICD workflow
--- Choose "Let me select individual events" and select "Issue comments" and "Pull requests"
+ - for Payload URL, we give: "https://xxx.ngrok-free.app/webhook"
+ - Content type: "application/json"
+ - create a webhook secret and use it in CICD workflow
+ - Choose "Let me select individual events" and select "Issue comments" and "Pull requests"
 
 
 ## Webhook Events
