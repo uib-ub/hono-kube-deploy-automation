@@ -154,8 +154,8 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 		util.NotifyLog("Pull request merged to %s branch", data.ghBranch)
 		// Get pull request label and check if it is "deploy-api-test"
 		for _, label := range event.GetPullRequest().Labels {
-			if label.GetName() == "deploy-api-test" {
-				log.Infof("Pull request label: %s", label.GetName())
+			log.Infof("Current pull request label: %s", label.GetName())
+			if strings.Contains(label.GetName(), "deploy-hono-test") {
 				// Clone or pull the GitHub repository to the local source path.
 				if err := s.getGithubRepo(data.ghRepoFullName, data.ghBranch); err != nil {
 					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
@@ -215,6 +215,7 @@ func (s *Server) extractEventData(event any, namespace string) (*eventData, erro
 		data.ghLoginOwner = event.GetRepo().GetOwner().GetLogin()
 		data.ghRepoFullName = event.GetRepo().GetFullName()
 		data.ghBranch = event.GetPullRequest().GetBase().GetRef()
+		data.ghRepoName = event.GetRepo().GetName()
 		data.imageTag = "latest" // Use "latest" as the image tag.
 	default:
 		return nil, fmt.Errorf("unsupported event type: %v", reflect.TypeOf(event))
@@ -397,7 +398,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "Namespace") {
 			log.Debugf("found Namespace file:\n%s\n", res)
-			err := s.retryKubeResources(3, 10*time.Second, func() error {
+			err := s.retryKubeResources(5, 10*time.Second, func() error {
 				_, _, err := s.KubeClient.Deploy(
 					data.ctx,
 					[]byte(res),
@@ -416,7 +417,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		}
 	}
 
-	err := s.retryKubeResources(3, 10*time.Second, func() error {
+	err := s.retryKubeResources(5, 10*time.Second, func() error {
 		// Trigger GitHub workflow to deploy Kubernetes secrets.
 		err := s.GithubClient.TriggerWorkFlow(
 			data.ctx,
@@ -451,7 +452,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
 
-		err := s.retryKubeResources(3, 10*time.Second, func() error {
+		err := s.retryKubeResources(5, 10*time.Second, func() error {
 			labels, replicas, err := s.KubeClient.Deploy(data.ctx, []byte(res), data.namespace, data.imageTag)
 			if err != nil {
 				log.Warnf("Failed to deploy resource: %v, retrying...", err)
@@ -490,7 +491,7 @@ func (s *Server) cleanupKubeResources(wg *sync.WaitGroup, errChan chan<- error, 
 			res = strings.Replace(res, "latest", data.imageTag, -1)
 		}
 		log.Debugf("Delete resource:\n%s\n", res)
-		err := s.retryKubeResources(3, 5*time.Second, func() error {
+		err := s.retryKubeResources(5, 5*time.Second, func() error {
 			return s.KubeClient.Delete(data.ctx, []byte(res), data.namespace)
 		})
 		if err != nil {

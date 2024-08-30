@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"sync/atomic"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
@@ -12,6 +13,9 @@ import (
 	"github.com/rollbar/rollbar-go"
 )
 
+// Declare isReady as a global variable to track readiness status
+var isReady atomic.Value
+
 func init() {
 	// Initialize the log formatter to include a full timestamp in the logs.
 	log.SetFormatter(&log.TextFormatter{
@@ -19,6 +23,9 @@ func init() {
 	})
 	// Set log level
 	// log.SetLevel(log.DebugLevel)
+
+	// Initialize readiness status
+	isReady.Store(false)
 }
 
 func main() {
@@ -30,9 +37,9 @@ func main() {
 	}
 	// Log the loaded configuration for debugging purposes.
 	log.WithFields(log.Fields{
-		"RollBarToken":   cfg.RollbarToken,
-		"GitHubToken":    cfg.GitHubToken,
-		"WebhookSecret":  cfg.WebhookSecret,
+		//	"RollBarToken":   cfg.RollbarToken,
+		//	"GitHubToken":    cfg.GitHubToken,
+		//	"WebhookSecret":  cfg.WebhookSecret,
 		"KubeConfig":     cfg.KubeConfig,
 		"LocalRepo":      cfg.Github.LocalRepo,
 		"WorkflowPrefix": cfg.Github.WorkflowPrefix,
@@ -48,7 +55,7 @@ func main() {
 	// Set up Rollbar for monitoring errors and logging.
 	rollbar.SetToken(cfg.RollbarToken)
 	rollbar.SetEnvironment("production")
-	rollbar.SetCodeVersion("1.0.0")
+	rollbar.SetCodeVersion("latest")
 	// Ensure Rollbar is flushed and closed on exit.
 	defer rollbar.Wait()
 	defer rollbar.Close()
@@ -89,10 +96,37 @@ func main() {
 	// When the webhook is triggered, the WebhookHandler function will be invoked.
 	http.HandleFunc("/webhook", webhook.WebhookHandler(server))
 
+	// Health check endpoints
+	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc("/ready", readinessHandler)
+
+	// Indicate readiness once initialization is complete
+	isReady.Store(true)
+
 	// Start the HTTP server on port 8080 and log any fatal errors.
 	log.Info("Server instance created, listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.WithError(err).Fatal("Failed to start server!")
 		util.NotifyCritical(err)
+	}
+}
+
+// healthHandler checks if the application is alive
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// Always return HTTP 200 OK to indicate the application is alive
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+}
+
+// readinessHandler checks if the application is ready to handle requests
+func readinessHandler(w http.ResponseWriter, r *http.Request) {
+	if isReady.Load().(bool) {
+		// Application is ready
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ready"))
+	} else {
+		// Application is not ready
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("not ready"))
 	}
 }
