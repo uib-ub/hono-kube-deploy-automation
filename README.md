@@ -6,8 +6,8 @@
 
 - [Overview](#Overview)
 - [Features](#Features)
-- [Workflow](#Workflow)
-- [Configuration](#Configuration-and-secrets)
+- [Workflow Diagram](#Workflow-diagram)
+- [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
 - [Webhook Events](#webhook-events)
 - [Testing and Code Coverage](#testing-and-code-coverage)
@@ -27,7 +27,7 @@ This Go application is designed to automate the deployment of the `hono-api` to 
 - Deploys Kubernetes resources using the Kubernetes Go client.
 - Integrates with Rollbar for error monitoring and logging.
 
-## Workflow
+## Workflow Diagram
 
 ```mermaid
 flowchart TB
@@ -97,11 +97,11 @@ flowchart TB
     end
 ```
 
-## Configuration and secrets
+## Configuration and Secrets
 
 The application requires configuration and secret settings.
-Configuation can be loaded from a file (config.yaml) 
-The secrets and environment variables are handled by Github repository secrets and used in Github workflow. 
+Configuration can be loaded from a file (config.yaml) 
+The secrets and environment variables are handled by Github repository secrets and used in the Github workflow. 
 
 Key secret:
 
@@ -157,7 +157,7 @@ for stop the application:
 docker-compose -f docker-compose.yaml up down
 ```
 
-3. use the tool such as [ngrok](https://ngrok.com/)
+3. use a tool such as [ngrok](https://ngrok.com/)
 
 For example, run the following command:
 ```
@@ -169,10 +169,10 @@ We get HTTP Endpoint:
 Forwarding https://xxx.ngrok-free.app -> http://localhost:8080 
 ```
 
-4. Copy `https://xxx.ngrok-free.app` to the Github webhook settings:
- - for Payload URL, we give: "https://xxx.ngrok-free.app/webhook"
+4. Copy `https://xxx.ngrok-free.app` to the GitHub webhook settings:
+ - for the Payload URL, we give: "https://xxx.ngrok-free.app/webhook"
  - Content type: "application/json"
- - create a webhook secret and use it in CICD workflow
+ - create a webhook secret and use it in the CICD workflow
  - Choose "Let me select individual events" and select "Issue comments" and "Pull requests"
 
 
