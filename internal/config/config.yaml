@@ -4,7 +4,7 @@ github:
   packageType: "container"
 
 kubernetes:
-  resource: "microk8s-hono-api"
+  resource: "microk8s-hono-api" 
   devNamespace: "hono-api-dev"
   testNamespace: "hono-api-test"
 
@@ -12,5 +12,3 @@ container:
   dockerFile: "Dockerfile.api"
   registry: "ghcr.io"
   imageSuffix: "api"
-
-  
