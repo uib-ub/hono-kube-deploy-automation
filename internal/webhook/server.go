@@ -25,6 +25,7 @@ type Options struct {
 	WFPrefix      string // Prefix used for workflow files.
 	LocalRepoDir  string // Path to the local Git repository.
 	PackageType   string // Type of package on GitHub
+	PrDeployLabel string // label used in pull requests for deployment to the test environment.
 	ImageSuffix   string // Suffix to append to container image names.
 	DevNamespace  string // Namespace for the dev environment on kubernetes.
 	TestNamespace string // Namespace for the test environment on kubernetes.
@@ -155,7 +156,7 @@ func (s *Server) handlePullRequestEvent(event *github.PullRequestEvent) error {
 		// Get pull request label and check if it is "deploy-api-test"
 		for _, label := range event.GetPullRequest().Labels {
 			log.Infof("Current pull request label: %s", label.GetName())
-			if strings.Contains(label.GetName(), "deploy-hono-test") {
+			if strings.Contains(label.GetName(), s.Options.PrDeployLabel) {
 				// Clone or pull the GitHub repository to the local source path.
 				if err := s.getGithubRepo(data.ghRepoFullName, data.ghBranch); err != nil {
 					return errors.NewInternalServerError(fmt.Sprintf("%v", err))
