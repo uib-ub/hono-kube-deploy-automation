@@ -5,7 +5,7 @@ github:
   prDeployLabel: "deploy-test-hono"
 
 kubernetes:
-  resource: "microk8s-hono-api" 
+  resource: "k8s-hono-api"
   devNamespace: "hono-api-dev"
   testNamespace: "hono-api-test"
 
