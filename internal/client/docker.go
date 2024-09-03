@@ -97,10 +97,10 @@ func (d *DockerClient) ImageBuild(
 
 	// Define options for building the image.
 	buildOptions := types.ImageBuildOptions{
-		Dockerfile:  d.DockerOptions.Dockerfile,
-		Tags:        []string{registryNameWithTag},
-		Remove:      true, // remove intermediate containers created during the build process
-		ForceRemove: true, // forces the removal of intermediate containers even if the build fails
+		Dockerfile: d.DockerOptions.Dockerfile,
+		Tags:       []string{registryNameWithTag},
+		//		Remove:      true, // remove intermediate containers created during the build process
+		//		ForceRemove: true, // forces the removal of intermediate containers even if the build fails
 	}
 
 	log.Infof("Building image: %s", registryNameWithTag)

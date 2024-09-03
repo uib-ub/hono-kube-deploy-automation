@@ -27,6 +27,7 @@ type GithubConfig struct {
 	WorkflowPrefix string // the prefix used for naming workflows in GitHub Actions
 	LocalRepo      string // the path to the local repository used for GitHub operations
 	PackageType    string
+	PrDeployLabel  string // the label used in the pr to deploy the application to test environment
 }
 
 // KubernetesConfig holds Kubernetes specific configuration
