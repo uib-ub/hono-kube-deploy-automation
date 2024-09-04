@@ -146,7 +146,7 @@ func (g *GithubClient) waitForWorkflowCompletion(
 	// Set the initial interval, max interval, and max duration for polling
 	initialInterval := 5 * time.Second // Set to 5 seconds.
 	maxInterval := 30 * time.Second    // Set to 30 seconds to prevent long delays between polls
-	maxDuration := 1 * time.Minute     // Total duration of the polling loop is capped at 1 minutes.
+	maxDuration := 2 * time.Minute     // Total duration of the polling loop is capped at 1 minutes.
 
 	startTime := time.Now()
 	interval := initialInterval
