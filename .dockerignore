@@ -1,5 +1,13 @@
+Dockerfile*
+docker-compose*
+.dockerignore
 .git
 .gitignore
+.github
+.env
+.env-template
 notes
 github-tocken
+coverage*
+.codecov.yml
 README.md
