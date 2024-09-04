@@ -8,6 +8,7 @@ on:
       - 'README.md'
 
   pull_request:
+    types: [synchronize]
     branches:
       - main # Trigger on PRs targeting main only
     paths-ignore:
