@@ -31,34 +31,42 @@ This Go application is designed to automate the deployment of the `hono-api` to 
 
 ```mermaid
 flowchart TB
-    A(HTTP Server to Listen to Webhook Events) --> B(GitHub Webhook Events)
-    B --> C(Process events by GitHub Go Client)
-    C --> D(Issue Comment Event)
-    C --> E(Pull Request Event)
+    A[HTTP Server to Listen to Webhook Events] --> B[GitHub Webhook Events]
+    B --> C[Process events by GitHub Go Client]
+    C --> D[Issue Comment Event]
+    C --> E[Pull Request Event]
 
-    D --> F(Check Action: Deleted or Created/Edited)
+    D --> F[Check Action: Deleted or Created/Edited]
 
-    F -- Action: created/edited 'deploy dev' comment --> G(Clone GitHub Repo)
-    G --> H(Kustomize Kubernetes Resource using Kustomize API)
-    H --> I(Build and Push Docker Image using Docker Go Client)
-    I --> J(Deploy to Dev Environment using Kubernetes Go Client and GitHub Go Client)
-    J -- Retry Mechanism --> J
-    J --> K(Wait for all replicated pods running using Kubernetes Go Client)
+    F -- Action: created/edited 'deploy dev' comment --> G[Clone GitHub Repo]
+    G --> H[Kustomize Kubernetes Resource using Kustomize API]
+    H --> I[Build and Push Docker Image using Docker Go Client]
+    I --> J1[Deploy Namespcae to Dev Environment using Kubernetes Go Client]
+    J1 -- Retry Mechanism for failure --> J1
+    J1 --> J2[Trigger Github workflow to deploy secrets to Dev Environment using GitHub Go Client]
+    J2 -- Retry Mechanism for failure --> J2
+    J2 --> J3[Deploy app to Dev Environment using Kubernetes Go Client]
+    J3 -- Retry Mechanism for failure --> J3
+    J3 --> K[Wait for all replicated pods running using Kubernetes Go Client]
 
-    F -- Action: deleted 'deploy dev' comment --> L(Concurret Cleanup)
-    L --> M(Delete Kubernetes Resource using Kubernetes Go Client)
-    L --> N(Delete Local Docker Image using Docker Go Client)
-    L --> O(Delete Local Git Repo)
-    L --> P(Delete Image on GitHub Container Registry using GitHub Go Client)
+    F -- Action: deleted 'deploy dev' comment --> L[Concurret Cleanup]
+    L --> M[Delete Kubernetes Resource using Kubernetes Go Client]
+    L --> N[Delete Local Docker Image using Docker Go Client]
+    L --> O[Delete Local Git Repo]
+    L --> P[Delete Image on GitHub Container Registry using GitHub Go Client]
 
-    E --> Q(Check if PR is Merged to Main/Master and Closed)
-    Q -- Yes -->  R(Clone GitHub Repo)
-    R --> S(Kustomize Kubernetes Resource using Kustomize API)
-    S --> T(Build Docker Image with 'latest' Tag and Push to GitHub Container Registry using Docker Go Client)
-    T --> U(Deploy to Test Environment on Microk8s using Kubernetes Go Client and GitHub Go Client)
-    U -- Retry Mechanism --> U
-    U --> V(Wait for all replicated pods running using Kubernetes Go Client)
-    V --> W(Concurret Cleanup)
+    E --> Q[Check if PR is Merged to Main/Master and Closed]
+    Q -- Yes -->  R[Clone GitHub Repo]
+    R --> S[Kustomize Kubernetes Resource using Kustomize API]
+    S --> T[Build Docker Image with 'latest' Tag and Push to GitHub Container Registry using Docker Go Client]
+    T --> U1[Deploy Namespcae to Test Environment using Kubernetes Go Client]
+    U1 -- Retry Mechanism for failure --> U1
+    U1 --> U2[Trigger Github workflow to deploy secrets to Test Environment using GitHub Go Client]
+    U2 -- Retry Mechanism for failure --> U2
+    U2 --> U3[Deploy app to Test Environment using Kubernetes Go Client]
+    U3 -- Retry Mechanism for failure --> U3
+    U3 --> V[Wait for all replicated pods running using Kubernetes Go Client] 
+    V --> W[Concurret Cleanup]
     W --> X(Delete Local Docker Image using Docker Go Client)
     W --> Y(Delete Git Repo using Github Gl Client)
 
@@ -68,7 +76,9 @@ flowchart TB
         H
         I
         subgraph Deploy to dev env
-          J
+          J1
+          J2
+          J3
         end
         K
         L
@@ -86,7 +96,9 @@ flowchart TB
         S
         T
         subgraph Deploy to test env
-          U
+          U1
+          U2
+          U3
         end
         V
         W
