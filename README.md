@@ -10,6 +10,7 @@
 - [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
 - [Webhook Events](#webhook-events)
+- [Rollbar Integration for Error Tracking](#rollbar-integration-for-error-tracking)
 - [Testing and Code Coverage](#testing-and-code-coverage)
 - [Deployment](#deployment)
 - [Health Checks](#health-checks)
@@ -198,6 +199,10 @@ Deploy to the development environment when a comment "deploy dev" is created or 
 b. Pull Request Event: 
 
 Deploy to the test environment when a pull request labeled "type: deploy-hono-test" is merged into the main branch.
+
+## Rollbar Integration for Error Tracking
+
+[Rollbar](https://rollbar.com/) is integrated into the application to monitor and track errors and log messages. This integration helps in identifying and resolving issues quickly by providing real-time insights into the application's behavior.
 
 ## Testing and Code Coverage
 
