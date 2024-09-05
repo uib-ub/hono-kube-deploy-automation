@@ -6,6 +6,7 @@
 
 - [Overview](#Overview)
 - [Features](#Features)
+- [Architecture](#Architecture)
 - [Workflow Diagram](#Workflow-diagram)
 - [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
@@ -27,6 +28,76 @@ This Go application is designed to automate the deployment of the `hono-api` to 
 - Utilizes Kustomize to build Kubernetes configuration resources.
 - Deploys Kubernetes resources using the Kubernetes Go client.
 - Integrates with Rollbar for error monitoring and logging.
+
+## Architecture
+```mermaid
+flowchart LR
+    User(User)
+    WebhookEvents(Webhook Events)
+    Packages(Packages)
+    Workflows(Workflows)
+    Source(Source)
+    WebhookHandler(Webhook Handler)
+    GithubClient(Github Client)
+    DockerClient(Docker Client)
+    Kustomizer(Kustomizer)
+    KubeClient(Kubernetes Client)
+    LocalRepo(Local Repository)
+    Rollbar(Rollbar)
+    HonoApi(Hono API)
+    RollbarService(Rollbar Service)
+    
+    subgraph Github
+        direction TB
+        subgraph Repo
+            direction TB
+            subgraph PR
+                WebhookEvents
+            end
+            Workflows
+            Source
+        end
+        Packages
+    end
+    
+    subgraph Kubernetes
+        direction TB
+        subgraph Github-Deploy-App
+            direction TB
+            WebhookHandler
+            subgraph WebhookServer
+                GithubClient
+                DockerClient
+                Kustomizer
+                KubeClient
+                Rollbar
+            end
+            LocalRepo
+        end
+        HonoApi
+    end
+    
+    WebhookEvents -- triggers --> WebhookHandler
+    WebhookHandler -- interacts with --> GithubClient
+    Source -- provides source to --> GithubClient
+    GithubClient -- fetches code to --> LocalRepo
+    GithubClient -- triggers --> Workflows
+    DockerClient -- build & push --> Packages
+    LocalRepo -- source code --> DockerClient
+    LocalRepo -- configurations --> Kustomizer
+    Kustomizer -- customize & apply --> KubeClient
+    KubeClient -- deploys to --> HonoApi
+    Packages -- used by --> HonoApi
+    Rollbar -- sends logs to --> RollbarService
+    RollbarService -- notifies --> User
+
+    classDef gh fill:#333333,stroke:#999999,stroke-width:1px,color:#ffffff;
+    classDef k8s fill:#444444,stroke:#999999,stroke-width:1px,color:#ffffff;
+    classDef external fill:#222222,stroke:#ffffff,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff;
+    class Github gh;
+    class Kubernetes k8s;
+    class RollbarService,User external;
+```
 
 ## Workflow Diagram
 
