@@ -81,7 +81,7 @@ flowchart LR
     WebhookHandler -- interacts with --> GithubClient
     Source -- provides source to --> GithubClient
     GithubClient -- fetches code to --> LocalRepo
-    GithubClient -- triggers --> Workflows
+    GithubClient -- triggers ---> Workflows
     DockerClient -- build & push --> Packages
     LocalRepo -- source code --> DockerClient
     LocalRepo -- configurations --> Kustomizer
@@ -100,61 +100,72 @@ flowchart LR
 ```
 
 ## Workflow Diagram
-
 ```mermaid
 flowchart TB
-    A[HTTP Server to Listen to Webhook Events] --> B[GitHub Webhook Events]
-    B --> C[Process events by GitHub Go Client]
+    A[HTTP Server to Listen to Webhook Events] --> B[Receive GitHub Webhook Events]
+    B --> C[Process Events with GitHub Go Client]
     C --> D[Issue Comment Event]
     C --> E[Pull Request Event]
 
-    D --> F[Check Action: Deleted or Created/Edited]
+    %% Issue Comment Event Handling
+    D --> F[Check Action: Created/Edited or Deleted]
 
-    F -- Action: created/edited 'deploy dev' comment --> G[Clone GitHub Repo]
-    G --> H[Kustomize Kubernetes Resource using Kustomize API]
+    F -- Action: Created/Edited 'deploy dev' comment --> G[Clone GitHub Repository]
+    G --> H[Kustomize Kubernetes Resources using Kustomize API]
     H --> I[Build and Push Docker Image using Docker Go Client]
-    I --> J1[Deploy Namespcae to Dev Environment using Kubernetes Go Client]
-    J1 -- Retry Mechanism for failure --> J1
-    J1 --> J2[Trigger Github workflow to deploy secrets to Dev Environment using GitHub Go Client]
-    J2 -- Retry Mechanism for failure --> J2
-    J2 --> J3[Deploy app to Dev Environment using Kubernetes Go Client]
-    J3 -- Retry Mechanism for failure --> J3
-    J3 --> K[Wait for all replicated pods running using Kubernetes Go Client]
+    I --> J1[Deploy Namespace to Dev Environment using Kubernetes Go Client]
+    J1 --> J1_Retry[Retry on Failure?]
+    J1_Retry -- Yes --> J1
+    J1 ---> J2[Trigger GitHub Workflow to Deploy Secrets to Dev Environment]
+    J2 --> J2_Retry[Retry on Failure?]
+    J2_Retry -- Yes --> J2
+    J2 ---> J3[Deploy App to Dev Environment using Kubernetes Go Client]
+    J3 --> J3_Retry[Retry on Failure?]
+    J3_Retry -- Yes --> J3
+    J3 ---> K[Wait for All Replicated Pods to Run using Kubernetes Go Client]
 
-    F -- Action: deleted 'deploy dev' comment --> L[Concurret Cleanup]
-    L --> M[Delete Kubernetes Resource using Kubernetes Go Client]
+    F -- Action: Deleted 'deploy dev' comment --> L[Concurrent Cleanup of Dev Environment]
+    L --> M[Delete Kubernetes Resources using Kubernetes Go Client]
     L --> N[Delete Local Docker Image using Docker Go Client]
-    L --> O[Delete Local Git Repo]
+    L --> O[Delete Local Git Repository]
     L --> P[Delete Image on GitHub Container Registry using GitHub Go Client]
 
+    %% Pull Request Event Handling
     E --> Q[Check if PR is Merged to Main/Master and Closed]
-    Q -- Yes -->  R[Clone GitHub Repo]
-    R --> S[Kustomize Kubernetes Resource using Kustomize API]
-    S --> T[Build Docker Image with 'latest' Tag and Push to GitHub Container Registry using Docker Go Client]
-    T --> U1[Deploy Namespcae to Test Environment using Kubernetes Go Client]
-    U1 -- Retry Mechanism for failure --> U1
-    U1 --> U2[Trigger Github workflow to deploy secrets to Test Environment using GitHub Go Client]
-    U2 -- Retry Mechanism for failure --> U2
-    U2 --> U3[Deploy app to Test Environment using Kubernetes Go Client]
-    U3 -- Retry Mechanism for failure --> U3
-    U3 --> V[Wait for all replicated pods running using Kubernetes Go Client] 
-    V --> W[Concurret Cleanup]
-    W --> X(Delete Local Docker Image using Docker Go Client)
-    W --> Y(Delete Git Repo using Github Gl Client)
+    Q -- Yes --> R[Clone GitHub Repository]
+    R --> S[Kustomize Kubernetes Resources using Kustomize API]
+    S --> T[Build Docker Image with 'latest' Tag and Push to GitHub Container Registry]
+    T --> U1[Deploy Namespace to Test Environment using Kubernetes Go Client]
+    U1 --> U1_Retry[Retry on Failure?]
+    U1_Retry -- Yes --> U1
+    U1 ---> U2[Trigger GitHub Workflow to Deploy Secrets to Test Environment]
+    U2 --> U2_Retry[Retry on Failure?]
+    U2_Retry -- Yes --> U2
+    U2 ---> U3[Deploy App to Test Environment using Kubernetes Go Client]
+    U3 --> U3_Retry[Retry on Failure?]
+    U3_Retry -- Yes --> U3
+    U3 ---> V[Wait for All Replicated Pods to Run using Kubernetes Go Client]
+    V --> W[Concurrent Cleanup of Test Environment]
+    W --> X[Delete Local Docker Image using Docker Go Client]
+    W --> Y[Delete Local Git Repository]
 
-    subgraph Process Issue Comment Event
+    %% Subgraphs for Logical Grouping
+    subgraph "Process Issue Comment Event"
         F
         G
         H
         I
-        subgraph Deploy to dev env
+        subgraph "Deploy to Dev Environment"
           J1
+          J1_Retry
           J2
+          J2_Retry
           J3
+          J3_Retry
         end
         K
         L
-        subgraph Cleanup dev env
+        subgraph "Cleanup Dev Environment"
           M
           N
           O
@@ -162,19 +173,23 @@ flowchart TB
         end
     end
 
-    subgraph Process Pull Request Event
+    subgraph "Process Pull Request Event"
         Q
         R
         S
         T
-        subgraph Deploy to test env
+        subgraph "Deploy to Test Environment"
+          direction RL
           U1
+          U1_Retry
           U2
+          U2_Retry
           U3
+          U3_Retry
         end
         V
         W
-        subgraph Cleanup test env
+        subgraph "Cleanup Test Environment"
           X
           Y
         end
