@@ -9,11 +9,11 @@
 - [Architecture Overview](#Architecture-overview)
 - [Workflow Diagram](#Workflow-diagram)
 - [Webook Settings](#Webook-settings)
+- [Webhook Events](#webhook-events)
 - [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
-- [Webhook Events](#webhook-events)
-- [Rollbar Integration for Error Tracking](#rollbar-integration-for-error-tracking)
 - [Testing and Code Coverage](#testing-and-code-coverage)
+- [Rollbar Integration for Error Tracking](#rollbar-integration-for-error-tracking)
 - [Deployment](#deployment)
 - [Health Checks](#health-checks)
 
@@ -205,6 +205,17 @@ flowchart TB
 - Select `Let me select individual events.`, then choose `Pull requests` and `Issue commits`
 - Click `Add webhook`
 
+## Webhook Events
+The application handles the following GitHub webhook events:
+
+a. Issue Comment Event: 
+
+Deploy to the development environment when a comment "deploy dev" is created or deleted in a pull request.
+
+b. Pull Request Event: 
+
+Deploy to the test environment when a pull request labeled "type: deploy-hono-test" is merged into the main branch.
+
 ## Configuration and Secrets
 
 The application requires configuration and secret settings.
@@ -284,24 +295,13 @@ Forwarding https://xxx.ngrok-free.app -> http://localhost:8080
  - Choose "Let me select individual events" and select "Issue comments" and "Pull requests"
 
 
-## Webhook Events
-The application handles the following GitHub webhook events:
+## Testing and Code Coverage
 
-a. Issue Comment Event: 
-
-Deploy to the development environment when a comment "deploy dev" is created or deleted in a pull request.
-
-b. Pull Request Event: 
-
-Deploy to the test environment when a pull request labeled "type: deploy-hono-test" is merged into the main branch.
+All Go client code (github.go, docker.go, kubernetes.go, and kustomize.go) is thoroughly tested with unit tests to ensure reliability. Code coverage is maintained using [Codecov](https://app.codecov.io/gh/uib-ub/hono-kube-deploy-automation), integrated via GitHub Actions to provide insights on test coverage.
 
 ## Rollbar Integration for Error Tracking
 
 [Rollbar](https://rollbar.com/) is integrated into the application to monitor and track errors and log messages. This integration helps in identifying and resolving issues quickly by providing real-time insights into the application's behavior.
-
-## Testing and Code Coverage
-
-All Go client code (github.go, docker.go, kubernetes.go, and kustomize.go) is thoroughly tested with unit tests to ensure reliability. Code coverage is maintained using [Codecov](https://app.codecov.io/gh/uib-ub/hono-kube-deploy-automation), integrated via GitHub Actions to provide insights on test coverage.
 
 ## Deployment
 
