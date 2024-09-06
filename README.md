@@ -199,11 +199,11 @@ flowchart TB
 
 ## Webhook Settings
 
-- Go to `Webhooks` under repository `Settings`, and click `Add webhook`
-- Add `https://api-git-deploy.testdu.uib.no/webhook` under `Payload URL`, and `application/json` under `Contentt type`
-- Give a Secret, which will be used in for webhook server to recieve webhook events
-- Select `Let me select individual events.`, then choose `Pull requests` and `Issue commits`
-- Click `Add webhook`
+- Go to `Webhooks` under repository `Settings`, and click `Add webhook`.
+- Add `https://api-git-deploy.testdu.uib.no/webhook` under `Payload URL`, and `application/json` under `Content type`.
+- Give a Secret, which will be used in for webhook server to recieve webhook events.
+- Select `Let me select individual events.`, then choose `Pull requests` and `Issue commits`.
+- Click `Add webhook`.
 
 ## Webhook Events
 The application handles the following GitHub webhook events:
@@ -214,7 +214,7 @@ Deploy to the development environment when a comment "deploy dev" is created or 
 
 b. Pull Request Event: 
 
-Deploy to the test environment when a pull request labeled "type: deploy-hono-test" is merged into the main branch.
+Deploy to the test environment when a pull request labeled "type: deploy-test-hono" is merged into the main branch.
 
 ## Configuration and Secrets
 
@@ -237,6 +237,7 @@ Key configuration in `config.yml`:
   - `workflowPrefix`: the prefix of the GitHub workflow name to deploy secrets to Kubernetes, such as "deploy-kube-secrets"
   - `localRep`: The local repository location, such as "app"
   - `packageType`: the GitHub package type, which is "container"
+  - `prDeployLabel`: label "deploy-test-hono" is used in PR to indicate the deployment to test environment
 
 - Kubernetes:
   - `KubeConfig`: Path to the local kubeconfig file, if we run this Go application outside of the Kubernetes cluster.
