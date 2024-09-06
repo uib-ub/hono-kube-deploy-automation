@@ -210,11 +210,11 @@ The application handles the following GitHub webhook events:
 
 a. Issue Comment Event: 
 
-Deploy to the development environment when a comment "deploy dev" is created or deleted in a pull request.
+Deploy to the development environment when a comment `deploy dev` is created or deleted in a pull request.
 
 b. Pull Request Event: 
 
-Deploy to the test environment when a pull request labeled "type: deploy-test-hono" is merged into the main branch.
+Deploy to the test environment when a pull request labeled `type: deploy-test-hono` is merged into the main branch.
 
 ## Configuration and Secrets
 
