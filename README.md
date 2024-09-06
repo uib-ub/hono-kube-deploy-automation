@@ -6,7 +6,7 @@
 
 - [Overview](#Overview)
 - [Features](#Features)
-- [Architecture](#Architecture)
+- [Architecture Overview](#Architecture-overview)
 - [Workflow Diagram](#Workflow-diagram)
 - [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
@@ -29,7 +29,7 @@ This Go application is designed to automate the deployment of the `hono-api` to 
 - Deploys Kubernetes resources using the Kubernetes Go client.
 - Integrates with Rollbar for error monitoring and logging.
 
-## Architecture
+## Architecture Overview
 ```mermaid
 flowchart LR
     User(User)
