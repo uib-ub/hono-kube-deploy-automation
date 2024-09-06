@@ -8,6 +8,7 @@
 - [Features](#Features)
 - [Architecture Overview](#Architecture-overview)
 - [Workflow Diagram](#Workflow-diagram)
+- [Webook Settings](#Webook-settings)
 - [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
 - [Webhook Events](#webhook-events)
@@ -196,13 +197,21 @@ flowchart TB
     end
 ```
 
+## Webhook Settings
+
+- Go to `Webhooks` under repository `Settings`, and click `Add webhook`
+- Add `https://api-git-deploy.testdu.uib.no/webhook` under `Payload URL`, and `application/json` under `Contentt type`
+- Give a Secret, which will be used in for webhook server to recieve webhook events
+- Select `Let me select individual events.`, then choose `Pull requests` and `Issue commits`
+- Click `Add webhook`
+
 ## Configuration and Secrets
 
 The application requires configuration and secret settings.
-Configuration can be loaded from a file (config.yaml) 
-The secrets and environment variables are handled by Github repository secrets and used in the Github workflow. 
+Configuration can be loaded from a file (`config.yaml`) 
+The secrets are handled by Github repository secrets and used in the Github workflow (`cicd.yaml`) job `deploy-secrets`. 
 
-Key secret:
+Key secrets:
 
 - GitHub:
   - `GitHubToken`: GitHub personal access token for authentication.
@@ -211,7 +220,7 @@ Key secret:
 - Rollbar:
   - `RollbarToken`: Token for Rollbar error logging.
 
-Key configuration:
+Key configuration in `config.yml`:
 
 - Github:
   - `workflowPrefix`: the prefix of the GitHub workflow name to deploy secrets to Kubernetes, such as "deploy-kube-secrets"
