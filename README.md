@@ -322,6 +322,6 @@ There resources defined in `deploy.yaml` file set up a Kubernetes deployment for
 
 The application provides two health check endpoints:
 
-* Liveness Probe: GET /health - Always returns 200 OK to indicate the application is alive.
+* Liveness Probe: `GET /health` - Always returns 200 OK to indicate the application is alive.
 
-* Readiness Probe: GET /ready - Returns 200 OK if the application is ready to handle requests, otherwise returns 503 Service Unavailable.
+* Readiness Probe: `GET /ready` - Returns 200 OK if the application is ready to handle requests, otherwise returns 503 Service Unavailable.
