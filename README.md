@@ -304,9 +304,19 @@ All Go client code (github.go, docker.go, kubernetes.go, and kustomize.go) is th
 
 [Rollbar](https://rollbar.com/) is integrated into the application to monitor and track errors and log messages. This integration helps in identifying and resolving issues quickly by providing real-time insights into the application's behavior.
 
-## Deployment
+## Deployment 
 
 Deployment is managed via a GitHub Actions CI/CD pipeline defined in CICD.yaml. This workflow automates testing, building, pushing Docker images, and deploying the application to a Kubernetes cluster.
+
+- Kubernetes YAML configuration (`deploy.yaml`) resources:
+  1. Deployment: this object decleares the manifest as a Deployment to manage the application pods.
+  2. Service: this object enables communication with the pod, and we use ClusterIP to expose the application internally within the cluster. It listen on port 80 (HTTP) and forward traffic to port 8080 on the pod. This Service is named `github-deploy-hono`.
+  3. Ingress: this object exposes the application to external traffic. It routes external traffic from `api-git-deploy.testdu.uib.no` to the Service `github-deploy-hono` on port 80. This Ingress uses `cert-manager` for TLS certificate provisioning with Let's Encrypt.
+  4. ServiceAccount: this object defines a service account for the deployment, and it is named as `github-deploy-hono`.
+  5. ClusterRole: this object defines permissions for accessing Kubernetes resources, and `github-deploy-hono` is the the role name. It grants permissions to access namespaces and all resources across all API groups
+  6. ClusterRoleBinding: this object binds the `github-deploy-hono` ClusterRole to the service account `github-deploy-hono`.
+
+There resources defined in `deploy.yaml` file set up a Kubernetes deployment for the github-deploy-hono application using a service account having permissions to manage kubernetes resources, such as "get", "list", "watch", "create", "update", "patch", and "delete".
 
 ## Health Checks
 
