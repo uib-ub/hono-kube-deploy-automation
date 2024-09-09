@@ -197,6 +197,10 @@ flowchart TB
     end
 ```
 
+## Domain
+
+The domain for the application is `api-git-deploy.testdu.uib.no` which is created on NREC and defined and used in Ingress of kubernetes deployment.
+
 ## Webhook Settings
 
 - Go to `Webhooks` under repository `Settings`, and click `Add webhook`.
