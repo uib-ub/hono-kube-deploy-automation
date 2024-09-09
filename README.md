@@ -6,12 +6,15 @@
 
 - [Overview](#Overview)
 - [Features](#Features)
+- [Architecture Overview](#Architecture-overview)
 - [Workflow Diagram](#Workflow-diagram)
+- [Webook Settings](#Webook-settings)
+- [Webhook Events](#webhook-events)
 - [Configuration and Secrets](#Configuration-and-secrets)
 - [Local Development with Docker Compose](#local-development-with-docker-compose)
-- [Webhook Events](#webhook-events)
 - [Testing and Code Coverage](#testing-and-code-coverage)
-- [Deployment](#deployment)
+- [Rollbar Integration for Error Tracking](#rollbar-integration-for-error-tracking)
+- [Kubernetes Deployment](#Kubernetes-deployment)
 - [Health Checks](#health-checks)
 
 ## Overview
@@ -27,52 +30,143 @@ This Go application is designed to automate the deployment of the `hono-api` to 
 - Deploys Kubernetes resources using the Kubernetes Go client.
 - Integrates with Rollbar for error monitoring and logging.
 
-## Workflow Diagram
+## Architecture Overview
+```mermaid
+flowchart LR
+    User(User)
+    WebhookEvents(Webhook Events)
+    Packages(Packages)
+    Workflows(Workflows)
+    Source(Source)
+    WebhookHandler(Webhook Handler)
+    GithubClient(Github Client)
+    DockerClient(Docker Client)
+    Kustomizer(Kustomizer)
+    KubeClient(Kubernetes Client)
+    LocalRepo(Local Repository)
+    Rollbar(Rollbar)
+    HonoApi(Hono API)
+    RollbarService(Rollbar Service)
+    
+    subgraph Github
+        direction TB
+        subgraph Repo
+            direction TB
+            subgraph PR
+                WebhookEvents
+            end
+            Workflows
+            Source
+        end
+        Packages
+    end
+    
+    subgraph Kubernetes
+        direction TB
+        subgraph Github-Deploy-App
+            direction TB
+            WebhookHandler
+            subgraph WebhookServer
+                GithubClient
+                DockerClient
+                Kustomizer
+                KubeClient
+                Rollbar
+            end
+            LocalRepo
+        end
+        HonoApi
+    end
+    
+    WebhookEvents -- triggers --> WebhookHandler
+    WebhookHandler -- interacts with --> GithubClient
+    Source -- provides source to --> GithubClient
+    GithubClient -- fetches code to --> LocalRepo
+    GithubClient -- triggers ---> Workflows
+    DockerClient -- build & push --> Packages
+    LocalRepo -- source code --> DockerClient
+    LocalRepo -- configurations --> Kustomizer
+    Kustomizer -- customize & apply --> KubeClient
+    KubeClient -- deploys to --> HonoApi
+    Packages -- used by --> HonoApi
+    Rollbar -- sends logs to --> RollbarService
+    RollbarService -- notifies --> User
 
+    classDef gh fill:#333333,stroke:#999999,stroke-width:1px,color:#ffffff;
+    classDef k8s fill:#444444,stroke:#999999,stroke-width:1px,color:#ffffff;
+    classDef external fill:#222222,stroke:#ffffff,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff;
+    class Github gh;
+    class Kubernetes k8s;
+    class RollbarService,User external;
+```
+
+## Workflow Diagram
 ```mermaid
 flowchart TB
-    A(HTTP Server to Listen to Webhook Events) --> B(GitHub Webhook Events)
-    B --> C(Process events by GitHub Go Client)
-    C --> D(Issue Comment Event)
-    C --> E(Pull Request Event)
+    A[HTTP Server to Listen to Webhook Events] --> B[Receive GitHub Webhook Events]
+    B --> C[Process Events with GitHub Go Client]
+    C --> D[Issue Comment Event]
+    C --> E[Pull Request Event]
 
-    D --> F(Check Action: Deleted or Created/Edited)
+    %% Issue Comment Event Handling
+    D --> F[Check Action: Created/Edited or Deleted]
 
-    F -- Action: created/edited 'deploy dev' comment --> G(Clone GitHub Repo)
-    G --> H(Kustomize Kubernetes Resource using Kustomize API)
-    H --> I(Build and Push Docker Image using Docker Go Client)
-    I --> J(Deploy to Dev Environment using Kubernetes Go Client and GitHub Go Client)
-    J -- Retry Mechanism --> J
-    J --> K(Wait for all replicated pods running using Kubernetes Go Client)
+    F -- Action: Created/Edited 'deploy dev' comment --> G[Clone GitHub Repository]
+    G --> H[Kustomize Kubernetes Resources using Kustomize API]
+    H --> I[Build and Push Docker Image using Docker Go Client]
+    I --> J1[Deploy Namespace to Dev Environment using Kubernetes Go Client]
+    J1 --> J1_Retry[Retry on Failure?]
+    J1_Retry -- Yes --> J1
+    J1 ---> J2[Trigger GitHub Workflow to Deploy Secrets to Dev Environment]
+    J2 --> J2_Retry[Retry on Failure?]
+    J2_Retry -- Yes --> J2
+    J2 ---> J3[Deploy App to Dev Environment using Kubernetes Go Client]
+    J3 --> J3_Retry[Retry on Failure?]
+    J3_Retry -- Yes --> J3
+    J3 ---> K[Wait for All Replicated Pods to Run using Kubernetes Go Client]
 
-    F -- Action: deleted 'deploy dev' comment --> L(Concurret Cleanup)
-    L --> M(Delete Kubernetes Resource using Kubernetes Go Client)
-    L --> N(Delete Local Docker Image using Docker Go Client)
-    L --> O(Delete Local Git Repo)
-    L --> P(Delete Image on GitHub Container Registry using GitHub Go Client)
+    F -- Action: Deleted 'deploy dev' comment --> L[Concurrent Cleanup of Dev Environment]
+    L --> M[Delete Kubernetes Resources using Kubernetes Go Client]
+    L --> N[Delete Local Docker Image using Docker Go Client]
+    L --> O[Delete Local Git Repository]
+    L --> P[Delete Image on GitHub Container Registry using GitHub Go Client]
 
-    E --> Q(Check if PR is Merged to Main/Master and Closed)
-    Q -- Yes -->  R(Clone GitHub Repo)
-    R --> S(Kustomize Kubernetes Resource using Kustomize API)
-    S --> T(Build Docker Image with 'latest' Tag and Push to GitHub Container Registry using Docker Go Client)
-    T --> U(Deploy to Test Environment on Microk8s using Kubernetes Go Client and GitHub Go Client)
-    U -- Retry Mechanism --> U
-    U --> V(Wait for all replicated pods running using Kubernetes Go Client)
-    V --> W(Concurret Cleanup)
-    W --> X(Delete Local Docker Image using Docker Go Client)
-    W --> Y(Delete Git Repo using Github Gl Client)
+    %% Pull Request Event Handling
+    E --> Q[Check if PR is Merged to Main/Master and Closed]
+    Q -- Yes --> R[Clone GitHub Repository]
+    R --> S[Kustomize Kubernetes Resources using Kustomize API]
+    S --> T[Build Docker Image with 'latest' Tag and Push to GitHub Container Registry]
+    T --> U1[Deploy Namespace to Test Environment using Kubernetes Go Client]
+    U1 --> U1_Retry[Retry on Failure?]
+    U1_Retry -- Yes --> U1
+    U1 ---> U2[Trigger GitHub Workflow to Deploy Secrets to Test Environment]
+    U2 --> U2_Retry[Retry on Failure?]
+    U2_Retry -- Yes --> U2
+    U2 ---> U3[Deploy App to Test Environment using Kubernetes Go Client]
+    U3 --> U3_Retry[Retry on Failure?]
+    U3_Retry -- Yes --> U3
+    U3 ---> V[Wait for All Replicated Pods to Run using Kubernetes Go Client]
+    V --> W[Concurrent Cleanup of Test Environment]
+    W --> X[Delete Local Docker Image using Docker Go Client]
+    W --> Y[Delete Local Git Repository]
 
-    subgraph Process Issue Comment Event
+    %% Subgraphs for Logical Grouping
+    subgraph "Process Issue Comment Event"
         F
         G
         H
         I
-        subgraph Deploy to dev env
-          J
+        subgraph "Deploy to Dev Environment"
+          J1
+          J1_Retry
+          J2
+          J2_Retry
+          J3
+          J3_Retry
         end
         K
         L
-        subgraph Cleanup dev env
+        subgraph "Cleanup Dev Environment"
           M
           N
           O
@@ -80,30 +174,55 @@ flowchart TB
         end
     end
 
-    subgraph Process Pull Request Event
+    subgraph "Process Pull Request Event"
         Q
         R
         S
         T
-        subgraph Deploy to test env
-          U
+        subgraph "Deploy to Test Environment"
+          direction RL
+          U1
+          U1_Retry
+          U2
+          U2_Retry
+          U3
+          U3_Retry
         end
         V
         W
-        subgraph Cleanup test env
+        subgraph "Cleanup Test Environment"
           X
           Y
         end
     end
 ```
 
+## Webhook Settings
+
+- Go to `Webhooks` under repository `Settings`, and click `Add webhook`.
+- Add `https://api-git-deploy.testdu.uib.no/webhook` under `Payload URL`, and `application/json` under `Content type`.
+- Give a Secret, which will be used in for webhook server to recieve webhook events.
+- Select `Let me select individual events.`, then choose `Pull requests` and `Issue commits`.
+- Click `Add webhook`.
+
+## Webhook Events
+The application handles the following GitHub webhook events:
+
+a. Issue Comment Event: 
+
+Deploy to the development environment when a comment `deploy dev` is created or deleted in a pull request.
+
+b. Pull Request Event: 
+
+Deploy to the test environment when a pull request labeled `type: deploy-test-hono` is merged into the main branch.
+
 ## Configuration and Secrets
 
 The application requires configuration and secret settings.
-Configuration can be loaded from a file (config.yaml) 
-The secrets and environment variables are handled by Github repository secrets and used in the Github workflow. 
+Configuration can be loaded from a file (`config.yaml`) 
+The secrets are handled by Github repository secrets and used in the Github workflow (`cicd.yaml`) job `deploy-secrets`. 
 
-Key secret:
+Key secrets:
 
 - GitHub:
   - `GitHubToken`: GitHub personal access token for authentication.
@@ -112,12 +231,13 @@ Key secret:
 - Rollbar:
   - `RollbarToken`: Token for Rollbar error logging.
 
-Key configuration:
+Key configuration in `config.yml`:
 
 - Github:
   - `workflowPrefix`: the prefix of the GitHub workflow name to deploy secrets to Kubernetes, such as "deploy-kube-secrets"
   - `localRep`: The local repository location, such as "app"
   - `packageType`: the GitHub package type, which is "container"
+  - `prDeployLabel`: label "deploy-test-hono" is used in PR to indicate the deployment to test environment
 
 - Kubernetes:
   - `KubeConfig`: Path to the local kubeconfig file, if we run this Go application outside of the Kubernetes cluster.
@@ -176,29 +296,32 @@ Forwarding https://xxx.ngrok-free.app -> http://localhost:8080
  - Choose "Let me select individual events" and select "Issue comments" and "Pull requests"
 
 
-## Webhook Events
-The application handles the following GitHub webhook events:
-
-a. Issue Comment Event: 
-
-Deploy to the development environment when a comment "deploy dev" is created or deleted in a pull request.
-
-b. Pull Request Event: 
-
-Deploy to the test environment when a pull request labeled "type: deploy-hono-test" is merged into the main branch.
-
 ## Testing and Code Coverage
 
 All Go client code (github.go, docker.go, kubernetes.go, and kustomize.go) is thoroughly tested with unit tests to ensure reliability. Code coverage is maintained using [Codecov](https://app.codecov.io/gh/uib-ub/hono-kube-deploy-automation), integrated via GitHub Actions to provide insights on test coverage.
 
-## Deployment
+## Rollbar Integration for Error Tracking
+
+[Rollbar](https://rollbar.com/) is integrated into the application to monitor and track errors and log messages. This integration helps in identifying and resolving issues quickly by providing real-time insights into the application's behavior.
+
+## Kubernetes Deployment 
 
 Deployment is managed via a GitHub Actions CI/CD pipeline defined in CICD.yaml. This workflow automates testing, building, pushing Docker images, and deploying the application to a Kubernetes cluster.
+
+- Kubernetes YAML configuration (`deploy.yaml`) resources:
+  1. `Deployment`: this object decleares the manifest as a `Deployment` to manage the application pods.
+  2. `Service`: this object enables communication with the pod, and we use `ClusterIP` to expose the application internally within the cluster. It listen on port 80 (HTTP) and forward traffic to port 8080 on the pod. This Service is named `github-deploy-hono`.
+  3. `Ingress`: this object exposes the application to external traffic. It routes external traffic from `api-git-deploy.testdu.uib.no` to the `Service` `github-deploy-hono` on port 80. This `Ingress` uses `cert-manager` for TLS certificate provisioning with Let's Encrypt.
+  4. `ServiceAccount`: this object defines a service account for the deployment, and it is named as `github-deploy-hono`.
+  5. `ClusterRole`: this object defines permissions for accessing Kubernetes resources, and `github-deploy-hono` is the role name. It grants permissions to access namespaces and all resources across all API groups
+  6. `ClusterRoleBinding`: this object binds the `github-deploy-hono` `ClusterRole` to the service account `github-deploy-hono`.
+
+There resources defined in `deploy.yaml` file set up a Kubernetes deployment for the github-deploy-hono application using a service account having permissions to manage kubernetes resources, such as "get", "list", "watch", "create", "update", "patch", and "delete".
 
 ## Health Checks
 
 The application provides two health check endpoints:
 
-* Liveness Probe: GET /health - Always returns 200 OK to indicate the application is alive.
+* Liveness Probe: `GET /health` - Always returns 200 OK to indicate the application is alive.
 
-* Readiness Probe: GET /ready - Returns 200 OK if the application is ready to handle requests, otherwise returns 503 Service Unavailable.
+* Readiness Probe: `GET /ready` - Returns 200 OK if the application is ready to handle requests, otherwise returns 503 Service Unavailable.

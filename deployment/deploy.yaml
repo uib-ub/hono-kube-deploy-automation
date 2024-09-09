@@ -12,7 +12,7 @@ spec:
       labels:
         app: github-deploy-hono
     spec:
-      serviceAccountName: github-deploy-hono
+      serviceAccountName: github-deploy-hono # Specifies the service account for the pod.
       containers:
       - name: github-deploy-hono
         image: ghcr.io/uib-ub/uib-ub/hono-kube-deploy-automation:latest
@@ -21,28 +21,28 @@ spec:
         - name: http-port
           containerPort: 8080
         env:
-          - name: DOCKER_HOST
-            value: "unix:///var/run/docker.sock"
-          - name: GITHUB_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: github-cred 
-                key: github-token
-                optional: false
-          - name: WEBHOOK_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: webhook-cred
-                key: webhook-secret
-                optional: false
-          - name: ROLLBAR_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: rollbar-cred
-                key: rollbar-token
-                optional: false
+        - name: DOCKER_HOST
+          value: "unix:///var/run/docker.sock"
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-cred
+              key: github-token
+              optional: false
+        - name: WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: webhook-cred
+              key: webhook-secret
+              optional: false
+        - name: ROLLBAR_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: rollbar-cred
+              key: rollbar-token
+              optional: false
         securityContext:
-          privileged: true  # Required for Docker-in-Docker unless using socket mounting
+          privileged: true # Required for Docker-in-Docker unless using socket mounting
           readOnlyRootFilesystem: false # Set to true if your app does not need to write to the filesystem
         resources:
           limits:
@@ -69,7 +69,7 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 5
       imagePullSecrets:
-      - name: github-deploy-regcred
+      - name: github-deploy-regcred # Refers to a secret (github-deploy-regcred) to authenticate with the container registry for pulling images.
       volumes:
       - name: lib-modules
         hostPath:
@@ -132,18 +132,18 @@ metadata:
     cert-manager.io/cluster-issuer: lets-encrypt
 spec:
   tls:
-    - hosts:
-        - api-git-deploy.testdu.uib.no
-      secretName: api-git-deploy-ingress-tls
+  - hosts:
+    - api-git-deploy.testdu.uib.no
+    secretName: api-git-deploy-ingress-tls
   rules:
-    - host: api-git-deploy.testdu.uib.no
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service: 
-                name: github-deploy-hono
-                port:
-                  number: 80
-              
+  - host: api-git-deploy.testdu.uib.no
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: github-deploy-hono
+            port:
+              number: 80
+

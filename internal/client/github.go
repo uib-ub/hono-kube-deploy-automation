@@ -146,13 +146,15 @@ func (g *GithubClient) waitForWorkflowCompletion(
 	// Set the initial interval, max interval, and max duration for polling
 	initialInterval := 5 * time.Second // Set to 5 seconds.
 	maxInterval := 30 * time.Second    // Set to 30 seconds to prevent long delays between polls
-	maxDuration := 1 * time.Minute     // Total duration of the polling loop is capped at 1 minutes.
+	maxDuration := 2 * time.Minute     // Total duration of the polling loop is capped at 1 minutes.
 
 	startTime := time.Now()
 	interval := initialInterval
 
 	// Polling loop to check the workflow status periodically
 	for {
+		// Wait for the current interval before polling again
+		time.Sleep(interval)
 		// Fetch the latest workflow status and conclusion
 		status, conclusion, err := g.getLatestWorkflowRunStatus(ctx, owner, repo, WFFile, branch)
 		if err != nil {
@@ -171,10 +173,9 @@ func (g *GithubClient) waitForWorkflowCompletion(
 		}
 		// Check if the maximum duration has been reached.
 		if time.Since(startTime) >= maxDuration {
+			log.Info("Maximum duration reached. Exiting polling loop.")
 			break
 		}
-		// Wait for the current interval before polling again
-		time.Sleep(interval)
 		// Exponentially increase the interval, but don't exceed the max interval
 		if interval*2 < maxInterval {
 			interval *= 2
@@ -211,6 +212,7 @@ func (g *GithubClient) workflowFinalCheck(
 	WFFile,
 	branch string,
 ) error {
+	log.Info("Performing final check on the workflow status ...")
 	status, conclusion, err := g.getLatestWorkflowRunStatus(ctx, owner, repo, WFFile, branch)
 	if err != nil {
 		return fmt.Errorf("failed to get final workflow status: %w", err)
