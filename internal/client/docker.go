@@ -113,7 +113,9 @@ func (d *DockerClient) ImageBuild(
 	if buildRes.Body != nil {
 		defer buildRes.Body.Close()
 		// Stream the build output to the console.
-		io.Copy(os.Stdout, buildRes.Body)
+		if _, err := io.Copy(os.Stdout, buildRes.Body); err != nil {
+			return fmt.Errorf("failed to copy build response: %w", err)
+		}
 	} else {
 		return fmt.Errorf("Build response body is nil for image: %s", registryNameWithTag)
 	}
@@ -159,7 +161,9 @@ func (d *DockerClient) ImagePush(registryOwner, imageName, imageTag string) erro
 	defer pushRes.Close()
 
 	// Stream the push output to the console.
-	io.Copy(os.Stdout, pushRes)
+	if _, err := io.Copy(os.Stdout, pushRes); err != nil {
+		return fmt.Errorf("failed to copy push response: %w", err)
+	}
 
 	log.Infof("Image %s is pushed to the container registry", registryNameWithTag)
 	return nil
