@@ -1,11 +1,11 @@
 # hono-kube-deploy-automation
 [![Build Status](https://github.com/uib-ub/hono-kube-deploy-automation/actions/workflows/cicd.yaml/badge.svg?branch=main)](https://github.com/uib-ub/hono-kube-deploy-automation/actions/workflows/cicd.yaml) [![codecov](https://codecov.io/gh/uib-ub/hono-kube-deploy-automation/graph/badge.svg?token=BK0QPWIF3P)](https://codecov.io/gh/uib-ub/hono-kube-deploy-automation)
 
-
 ## Table of Contents
 
 - [Overview](#Overview)
 - [Features](#Features)
+- [Iterative Waterfall Model](#Iterative-waterfall-model)
 - [Architecture Overview](#Architecture-overview)
 - [Workflow Diagram](#Workflow-diagram)
 - [Webook Settings](#Webook-settings)
@@ -29,6 +29,10 @@ This Go application is designed to automate the deployment of the `hono-api` to 
 - Utilizes Kustomize to build Kubernetes configuration resources.
 - Deploys Kubernetes resources using the Kubernetes Go client.
 - Integrates with Rollbar for error monitoring and logging.
+
+## Iterative Waterfall Model
+
+![iterative-waterfall](https://github.com/user-attachments/assets/3672ebb6-85da-470e-9399-b5fedac22f12)
 
 ## Architecture Overview
 ```mermaid
