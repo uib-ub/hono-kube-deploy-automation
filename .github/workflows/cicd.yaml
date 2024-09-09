@@ -120,7 +120,7 @@ jobs:
         cache-to: type=gha,mode=max
 
   deploy-secrets:
-    needs: [test, build-and-push]
+    needs: build-and-push
     runs-on: ubuntu-latest
     environment:
       name: github-kube-secrets
@@ -197,7 +197,7 @@ jobs:
           manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
 
   deploy-app:
-    needs: [test, build-and-push, deploy-secrets]
+    needs: deploy-secrets
     runs-on: ubuntu-latest
     environment:
       name: github-kube-deploy
