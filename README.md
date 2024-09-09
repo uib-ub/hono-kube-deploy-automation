@@ -92,8 +92,8 @@ flowchart LR
     Rollbar -- sends logs to --> RollbarService
     RollbarService -- notifies --> User
 
-    classDef gh fill:#333333,stroke:#999999,stroke-width:1px,color:#ffffff;
-    classDef k8s fill:#444444,stroke:#999999,stroke-width:1px,color:#ffffff;
+    classDef gh fill:#666666,stroke:#999999,stroke-width:1px,color:#ffffff;
+    classDef k8s fill:#777777,stroke:#999999,stroke-width:1px,color:#ffffff;
     classDef external fill:#222222,stroke:#ffffff,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff;
     class Github gh;
     class Kubernetes k8s;
