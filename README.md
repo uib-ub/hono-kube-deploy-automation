@@ -15,6 +15,7 @@
 - [Testing and Code Coverage](#testing-and-code-coverage)
 - [Rollbar Integration for Error Tracking](#rollbar-integration-for-error-tracking)
 - [Kubernetes Deployment](#Kubernetes-deployment)
+- [CICD workflow](#CICD-workflow)
 - [Health Checks](#health-checks)
 
 ## Overview
@@ -325,6 +326,11 @@ Deployment is managed via a GitHub Actions CI/CD pipeline defined in CICD.yaml. 
   6. `ClusterRoleBinding`: this object binds the `github-deploy-hono` `ClusterRole` to the service account `github-deploy-hono`.
 
 There resources defined in `deploy.yaml` file set up a Kubernetes deployment for the github-deploy-hono application using a service account having permissions to manage kubernetes resources, such as "get", "list", "watch", "create", "update", "patch", and "delete".
+
+## CICD workflow
+
+![cicd-workflow](https://github.com/user-attachments/assets/e4e2fa66-d16d-4513-bf93-e3771e590fa3)
+
 
 ## Health Checks
 
