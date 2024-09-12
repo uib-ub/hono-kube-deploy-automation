@@ -303,7 +303,15 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Check for changes in deployment or source code
+        run: |
+          echo "deployment changes: ${{ steps.check-changes.outputs.deployment_changes }}"
+          echo "source changes: ${{ steps.check-changes.outputs.source_changes }}"
+          echo "deployment changes needs: ${{ needs.check-changes.outputs.deployment_changes }}"
+          echo "source changes needs: ${{ needs.check-changes.outputs.source_changes }}"
+
       - name: Notify start deploy to Rollbar
+        if: needs.check-changes.outputs.deployment_changes =='true' || needs.check-changes.outputs.source_changes =='true' 
         uses: rollbar/github-deploy-action@2.1.1
         id: rollbar_pre_deploy
         with:
@@ -362,6 +370,7 @@ jobs:
 #          fi
       
       - name: Notify finish deploy to Rollbar
+        if: needs.check-changes.outputs.deployment_changes =='true' || needs.check-changes.outputs.source_changes =='true' 
         uses: rollbar/github-deploy-action@2.1.1
         id: rollbar_post_deploy
         with:
