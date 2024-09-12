@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 10
       
       - name: show git log
-        run: git log -3 --oneline
+        run: git log -10 --oneline
 
       - name: Determine if this is a PR or a push to main
         id: determine_context
