@@ -99,6 +99,9 @@ jobs:
             echo "source_changes=false" >> $GITHUB_OUTPUT
           fi
 
+          echo "deployment changes env: ${{ env.deployment_changes }}"
+          echo "source changes env: ${{ env.source_changes }}"
+
   lint:
     needs: check-changes
     runs-on: ubuntu-latest
