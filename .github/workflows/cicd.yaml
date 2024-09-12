@@ -281,6 +281,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-kube-deploy
+    if: needs.check-changes.outputs.deployment_changes =='true' || needs.check-changes.outputs.source_changes =='true' 
     steps: 
       - name: Kubectl tool installer
         uses: Azure/setup-kubectl@v3
