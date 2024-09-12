@@ -42,6 +42,15 @@ jobs:
       - name: check recent commits
         run: git log -p ${{ github.sha }}^ ${{ github.sha }}
         
+      - name: Get previous commit hash
+        id: get_previous_commit
+        run: echo "PREVIOUS_SHA=$(git rev-parse ${{ github.sha }}^)" >> $GITHUB_ENV
+
+      - name: Check for changes in deployment or source code
+        run: |
+          # Debugging: Print the latest and previous commit
+          echo "Latest Commit: ${{ github.sha }}"
+          echo "Previous Commit: ${{ env.PREVIOUS_SHA }}"
 
       - name: Check for changes in deployment or source code
         id: set_changes
