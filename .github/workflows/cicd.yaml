@@ -91,18 +91,13 @@ jobs:
           # Check if source code files have changed (cmd/, internal/, Dockerfile, go.mod, go.sum)
           if git diff --name-only ${{ env.PREV_COMMIT  }} ${{  env.LATEST_COMMIT }} | grep -E '^(cmd/|internal/|Dockerfile|go.mod|go.sum)'; then
             echo "source_changes=true"
-            echo "source_changes=true" >> $GITHUB_ENV
+          # echo "source_changes=true" >> $GITHUB_ENV
             echo "source_changes=true" >> $GITHUB_OUTPUT
           else
             echo "source_changes=false"
-            echo "source_changes=false" >> $GITHUB_ENV
+          # echo "source_changes=false" >> $GITHUB_ENV
             echo "source_changes=false" >> $GITHUB_OUTPUT
           fi
-          
-      - name: Check for env in deployment or source code
-        run: |
-          echo "deployment changes env: ${{ env.deployment_changes }}"
-          echo "source changes env: ${{ env.source_changes }}"
 
   lint:
     needs: check-changes
@@ -310,10 +305,6 @@ jobs:
 
       - name: Check for changes in deployment or source code
         run: |
-          echo "deployment changes env: ${{ env.deployment_changes }}"
-          echo "source changes env: ${{ env.source_changes }}"
-          echo "deployment changes: ${{ steps.check-changes.outputs.deployment_changes }}"
-          echo "source changes: ${{ steps.check-changes.outputs.source_changes }}"
           echo "deployment changes needs: ${{ needs.check-changes.outputs.deployment_changes }}"
           echo "source changes needs: ${{ needs.check-changes.outputs.source_changes }}"
 
@@ -346,7 +337,6 @@ jobs:
 
       # Apply deployment configuration if deployment files changed
       - name: Apply deployment configuration if changed
-        # if: env.deployment_changes == 'true'
         if: needs.check-changes.outputs.deployment_changes =='true'
         run: |
           echo "Applying deployment configuration..."
@@ -354,7 +344,6 @@ jobs:
 
       # Always refresh deployment if source code changed
       - name: Force Kubernetes to pull latest image if source code changed
-        # if: env.source_changes == 'true'
         if: needs.check-changes.outputs.source_changes =='true'
         run: |
           DEPLOYMENT_NAME="github-deploy-hono"
