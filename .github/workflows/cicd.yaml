@@ -228,18 +228,50 @@ jobs:
         env:
           ROLLBAR_ACCESS_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
 
-      - name: deploy application to kubernetes on NREC
+      - name: Check for changes in deployment or source code
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep '^deployment/'; then
+            echo "deployment_changes=true" >> $GITHUB_ENV
+          else
+            echo "deployment_changes=false" >> $GITHUB_ENV
+          fi
+          
+          # Check if source code files have changed (cmd/, internal/, Dockerfile, go.mod, go.sum)
+          if git diff --name-only HEAD^ HEAD | grep -E '^(cmd/|internal/|Dockerfile|go.mod|go.sum)'; then
+            echo "source_changes=true" >> $GITHUB_ENV
+          else
+            echo "source_changes=false" >> $GITHUB_ENV
+          fi
+
+      # Apply deployment configuration if deployment files changed
+      - name: Apply deployment configuration if changed
+        if: env.deployment_changes == 'true'
+        run: |
+          echo "Applying deployment configuration..."
+          kubectl apply -f deployment/deploy.yaml
+
+      # Always refresh deployment if source code changed
+      - name: Force Kubernetes to pull latest image if source code changed
+        if: env.source_changes == 'true'
         run: |
           DEPLOYMENT_NAME="github-deploy-hono"
           NAMESPACE="default"
-          # Check if the deployment already exists
-          if kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
-            echo "Deployment $DEPLOYMENT_NAME already exists. Performing rolling restart..."
-            kubectl rollout restart deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE"
-          else
-            echo "Deployment $DEPLOYMENT_NAME does not exist. Applying deployment..."
-            kubectl apply -f deployment/deploy.yaml
-          fi
+          echo "Forcing Kubernetes to pull the latest image..."
+          kubectl patch deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" \
+            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"$(date +%s)\"}}}}}"
+
+#      - name: deploy application to kubernetes on NREC
+#        run: |
+#          DEPLOYMENT_NAME="github-deploy-hono"
+#          NAMESPACE="default"
+#          # Check if the deployment already exists
+#          if kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+#            echo "Deployment $DEPLOYMENT_NAME already exists. Performing rolling restart..."
+#            kubectl rollout restart deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE"
+#          else
+#            echo "Deployment $DEPLOYMENT_NAME does not exist. Applying deployment..."
+#            kubectl apply -f deployment/deploy.yaml
+#          fi
       
       - name: Notify finish deploy to Rollbar
         uses: rollbar/github-deploy-action@2.1.1
