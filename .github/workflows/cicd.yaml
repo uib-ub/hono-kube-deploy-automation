@@ -277,7 +277,7 @@ jobs:
           manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
 
   deploy-app:
-    needs: deploy-secrets
+    needs: [check-changes, deploy-secrets]
     runs-on: ubuntu-latest
     environment:
       name: github-kube-deploy
@@ -305,6 +305,8 @@ jobs:
 
       - name: Check for changes in deployment or source code
         run: |
+          echo "deployment changes env: ${{ env.deployment_changes }}"
+          echo "source changes env: ${{ env.source_changes }}"
           echo "deployment changes: ${{ steps.check-changes.outputs.deployment_changes }}"
           echo "source changes: ${{ steps.check-changes.outputs.source_changes }}"
           echo "deployment changes needs: ${{ needs.check-changes.outputs.deployment_changes }}"
