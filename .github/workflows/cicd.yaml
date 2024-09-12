@@ -26,14 +26,6 @@ jobs:
       source_changes: ${{ steps.set_changes.outputs.source_changes }}
       deployment_changes: ${{ steps.set_changes.outputs.deployment_changes }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 20
-      
-      - name: show git log
-        run: git log -20 --oneline
-
       - name: Determine if this is a PR or a push to main
         id: determine_context
         run: |
@@ -42,6 +34,23 @@ jobs:
           else
             echo "context=push" >> $GITHUB_ENV
           fi
+        
+      # Step 2: Conditionally checkout the code based on the context (PR or main branch)
+      - name: Checkout code for PR
+        if: env.context == 'pr'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact commit from the PR branch
+          fetch-depth: 2  # Fetch enough commit history to get the previous commits
+
+      - name: Checkout code for main branch
+        if: github.ref == 'refs/heads/main'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch enough commit history to get the previous commits
+
+      - name: show git log
+        run: git log -20 --oneline
       
       - name: Get the correct commits to compare
         id: get_commits
