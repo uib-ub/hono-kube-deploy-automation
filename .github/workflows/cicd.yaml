@@ -204,16 +204,22 @@ jobs:
     steps: 
       - name: Kubectl tool installer
         uses: Azure/setup-kubectl@v3
+
       - name: Setup kubectl
         env:
           MICROK8S_CONFIG: ${{ secrets.MICROK8S_CONFIG }}
         run: |
           mkdir -p $HOME/.kube
           echo "${MICROK8S_CONFIG}" | base64 --decode > $HOME/.kube/config
+
       - name: Check kubectl get node
         run: kubectl get nodes -o wide
+
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch the last two commits
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
