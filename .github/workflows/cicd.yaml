@@ -29,10 +29,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 10
+          fetch-depth: 20
       
       - name: show git log
-        run: git log -10 --oneline
+        run: git log -20 --oneline
 
       - name: Determine if this is a PR or a push to main
         id: determine_context
