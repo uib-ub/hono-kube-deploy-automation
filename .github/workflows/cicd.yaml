@@ -32,7 +32,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "context=pr" >> $GITHUB_ENV
           else
-            echo "context=push" >> $GITHUB_ENV
+            echo "context=main" >> $GITHUB_ENV
           fi
         
       # Step 2: Conditionally checkout the code based on the context (PR or main branch)
@@ -58,23 +58,21 @@ jobs:
           # This is a push to main, compare HEAD (latest) and HEAD~1 (previous)
           LATEST_COMMIT=$(git rev-parse HEAD)
           PREV_COMMIT=$(git rev-parse HEAD~1)
+          echo "LATEST_COMMIT=$LATEST_COMMIT" >> $GITHUB_ENV
+          echo "PREV_COMMIT=$PREV_COMMIT" >> $GITHUB_ENV
 
+          # TODO: DEBUG
           echo "sha head $(git rev-parse HEAD)"
           echo "sha head^ $(git rev-parse HEAD^)"
           echo "sha head~0 $(git rev-parse HEAD~0)"
           echo "sha head~1 $(git rev-parse HEAD~1)"
           echo 'pull request head sha: ${{ github.event.pull_request.head.sha }}'
-          echo "LATEST_COMMIT=$LATEST_COMMIT" >> $GITHUB_ENV
-          echo "PREV_COMMIT=$PREV_COMMIT" >> $GITHUB_ENV
 
       - name: Check for changes in deployment or source code
         run: |
           # Debugging: Print the commits being compared
           echo "Latest Commit: ${{ env.LATEST_COMMIT }}"
           echo "Commit Before Latest: ${{ env.PREV_COMMIT }}"
-
-      - name: show git log
-        run: git log -3 --oneline
 
       - name: Check for changes in deployment or source code
         id: set_changes
