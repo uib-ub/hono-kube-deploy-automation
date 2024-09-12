@@ -31,6 +31,16 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: show git log
+        run: git log -2 --oneline
+      - name: Debug Git diff
+        run: git diff --name-only HEAD^ HEAD 
+      - name: Debug Git diff without witespace
+        run: git diff -w --name-only HEAD^ HEAD
+      - name: check recent commits
+        run: git log -p HEAD^ HEAD 
+        
+
       - name: Check for changes in deployment or source code
         id: set_changes
         run: |
