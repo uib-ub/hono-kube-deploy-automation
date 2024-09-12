@@ -23,7 +23,6 @@ func init() {
 	})
 	// Set log level
 	// log.SetLevel(log.DebugLevel)
-
 	// Initialize readiness status
 	isReady.Store(false)
 }
