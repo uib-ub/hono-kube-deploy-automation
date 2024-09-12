@@ -98,7 +98,9 @@ jobs:
             echo "source_changes=false" >> $GITHUB_ENV
             echo "source_changes=false" >> $GITHUB_OUTPUT
           fi
-
+          
+      - name: Check for env in deployment or source code
+        run: |
           echo "deployment changes env: ${{ env.deployment_changes }}"
           echo "source changes env: ${{ env.source_changes }}"
 
