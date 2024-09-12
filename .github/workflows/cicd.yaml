@@ -48,8 +48,9 @@ jobs:
         run: |
           if [[ "${{ env.context }}" == "pr" ]]; then
             # This is a pull request; skip the merge commit and get the previous two actual commits
-            LATEST_COMMIT=$(git rev-parse HEAD~1)  # Consider the latest commit is the one before the latest merge commit
-            PREV_COMMIT=$(git rev-parse HEAD~2)  # The commit before the "latest commit"
+            # LATEST_COMMIT=$(git rev-parse HEAD~1)  # Consider the latest commit is the one before the latest merge commit
+            LATEST_COMMIT=${{ github.event.pull_request.head.sha }}
+            PREV_COMMIT=$(git rev-parse HEAD~1)  # The commit before the "latest commit"
 
             if [[ "$LATEST_COMMIT" == "none" || "$PREV_COMMIT" == "none" ]]; then
               echo "Not enough commit history available to compare previous commits."
