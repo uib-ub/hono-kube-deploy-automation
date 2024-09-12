@@ -29,10 +29,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 3
 
       - name: show git log
-        run: git log -2 --oneline
+        run: git log -3 --oneline
       - name: Debug Git diff
         run: git diff --name-only HEAD^ HEAD 
       - name: Debug Git diff sha
