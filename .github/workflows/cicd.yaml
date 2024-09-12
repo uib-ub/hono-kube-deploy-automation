@@ -29,7 +29,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 3
+          fetch-depth: 10
       
       - name: show git log
         run: git log -3 --oneline
