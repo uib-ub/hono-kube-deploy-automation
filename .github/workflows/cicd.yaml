@@ -60,6 +60,11 @@ jobs:
              LATEST_COMMIT=$(git rev-parse HEAD)
              PREV_COMMIT=$(git rev-parse HEAD~1)
           fi
+          echo "sha head $(git rev-parse HEAD)"
+          echo "sha head^ $(git rev-parse HEAD^)"
+          echo "sha head~0 $(git rev-parse HEAD~0)"
+          echo "sha head~1 $(git rev-parse HEAD~1)"
+          echo "sha head~2 $(git rev-parse HEAD~2)"
           echo "LATEST_COMMIT=$LATEST_COMMIT" >> $GITHUB_ENV
           echo "PREV_COMMIT=$PREV_COMMIT" >> $GITHUB_ENV
 
