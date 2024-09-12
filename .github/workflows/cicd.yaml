@@ -101,7 +101,6 @@ jobs:
 
   lint:
     needs: check-changes
-    if: needs.check-changes.outputs.source_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -121,8 +120,7 @@ jobs:
         run: golangci-lint run ./...  -v --timeout 5m
 
   test:
-    needs: [check-changes, lint]
-    if: needs.check-changes.outputs.source_changes == 'true'
+    needs: lint
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -165,8 +163,7 @@ jobs:
         fail_ci_if_error: true
 
   build-and-push:
-    needs: [check-changes, lint, test]
-    if: needs.check-changes.outputs.source_changes == 'true'
+    needs: test
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
@@ -203,8 +200,7 @@ jobs:
         cache-to: type=gha,mode=max
 
   deploy-secrets:
-    needs: [check-changes]
-    if: needs.check-changes.outputs.deployment_changes =='true'
+    needs: build-and-push
     runs-on: ubuntu-latest
     environment:
       name: github-kube-secrets
@@ -281,7 +277,7 @@ jobs:
           manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
 
   deploy-app:
-    needs: [check-changes, lint, test, build-and-push, deploy-secrets]
+    needs: deploy-secrets
     runs-on: ubuntu-latest
     environment:
       name: github-kube-deploy
