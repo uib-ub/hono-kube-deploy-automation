@@ -24,7 +24,7 @@ spec:
         - name: DOCKER_HOST
           value: "unix:///var/run/docker.sock"
         - name: DOCKER_BUILDKIT
-          value: "1" # enable BuildKit for building docker images.
+          value: "1" # enable BuildKit for building docker images efficiently.
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
