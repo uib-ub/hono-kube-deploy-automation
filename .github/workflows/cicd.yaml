@@ -20,7 +20,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      source_changes: ${{ steps.set_changes.outputs.source_changes }}
+      deployment_changes: ${{ steps.set_changes.outputs.deployment_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for changes in deployment or source code
+        id: set_changes
+        run: |
+          # Check if files in the deployment directory have changed
+          if git diff --name-only HEAD^ HEAD | grep '^deployment/'; then
+            echo "deployment_changes=true" >> $GITHUB_ENV
+            echo "::set-output name=deployment_changes::true"
+          else
+            echo "deployment_changes=false" >> $GITHUB_ENV
+            echo "::set-output name=deployment_changes::false"
+          fi
+          
+          # Check if source code files have changed (cmd/, internal/, Dockerfile, go.mod, go.sum)
+          if git diff --name-only HEAD^ HEAD | grep -E '^(cmd/|internal/|Dockerfile|go.mod|go.sum)'; then
+            echo "source_changes=true" >> $GITHUB_ENV
+            echo "::set-output name=source_changes::true"
+          else
+            echo "source_changes=false" >> $GITHUB_ENV
+            echo "::set-output name=source_changes::false"
+          fi
+
+          echo "source_changes: ${{ env.source_changes }}"
+          echo "deployment_changes: ${{ env.deployment_changes }}"
+
   lint:
+    needs: check-changes
+    if: needs.check-changes.outputs.source_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -40,8 +77,9 @@ jobs:
         run: golangci-lint run ./...  -v --timeout 5m
 
   test:
+    needs: [check-changes, lint]
+    if: needs.check-changes.outputs.source_changes == 'true'
     runs-on: ubuntu-latest
-    needs: lint
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -83,7 +121,8 @@ jobs:
         fail_ci_if_error: true
 
   build-and-push:
-    needs: test
+    needs: [check-changes, lint, test]
+    if: needs.check-changes.outputs.source_changes == 'true'
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
@@ -120,7 +159,8 @@ jobs:
         cache-to: type=gha,mode=max
 
   deploy-secrets:
-    needs: build-and-push
+    needs: [check-changes]
+    if: needs.check-changes.outputs.deployment_changes =='true'
     runs-on: ubuntu-latest
     environment:
       name: github-kube-secrets
@@ -197,7 +237,7 @@ jobs:
           manage_kube_secret "rollbar-cred" "rollbar-token" "${{ secrets.ROLLBAR_TOKEN }}"
 
   deploy-app:
-    needs: deploy-secrets
+    needs: [check-changes, lint, test, build-and-push, deploy-secrets]
     runs-on: ubuntu-latest
     environment:
       name: github-kube-deploy
@@ -234,31 +274,33 @@ jobs:
         env:
           ROLLBAR_ACCESS_TOKEN: ${{ secrets.ROLLBAR_TOKEN }}
 
-      - name: Check for changes in deployment or source code
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep '^deployment/'; then
-            echo "deployment_changes=true" >> $GITHUB_ENV
-          else
-            echo "deployment_changes=false" >> $GITHUB_ENV
-          fi
-          
-          # Check if source code files have changed (cmd/, internal/, Dockerfile, go.mod, go.sum)
-          if git diff --name-only HEAD^ HEAD | grep -E '^(cmd/|internal/|Dockerfile|go.mod|go.sum)'; then
-            echo "source_changes=true" >> $GITHUB_ENV
-          else
-            echo "source_changes=false" >> $GITHUB_ENV
-          fi
+#      - name: Check for changes in deployment or source code
+#        run: |
+#          if git diff --name-only HEAD^ HEAD | grep '^deployment/'; then
+#            echo "deployment_changes=true" >> $GITHUB_ENV
+#          else
+#            echo "deployment_changes=false" >> $GITHUB_ENV
+#          fi
+#          
+#          # Check if source code files have changed (cmd/, internal/, Dockerfile, go.mod, go.sum)
+#          if git diff --name-only HEAD^ HEAD | grep -E '^(cmd/|internal/|Dockerfile|go.mod|go.sum)'; then
+#            echo "source_changes=true" >> $GITHUB_ENV
+#          else
+#            echo "source_changes=false" >> $GITHUB_ENV
+#          fi
 
       # Apply deployment configuration if deployment files changed
       - name: Apply deployment configuration if changed
-        if: env.deployment_changes == 'true'
+        # if: env.deployment_changes == 'true'
+        if: needs.check-changes.outputs.deployment_changes =='true'
         run: |
           echo "Applying deployment configuration..."
           kubectl apply -f deployment/deploy.yaml
 
       # Always refresh deployment if source code changed
       - name: Force Kubernetes to pull latest image if source code changed
-        if: env.source_changes == 'true'
+        # if: env.source_changes == 'true'
+        if: needs.check-changes.outputs.source_changes =='true'
         run: |
           DEPLOYMENT_NAME="github-deploy-hono"
           NAMESPACE="default"
