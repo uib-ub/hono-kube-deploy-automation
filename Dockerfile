@@ -29,10 +29,10 @@ RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -
     mv ./kubectl /usr/local/bin/kubectl
 
 # Optimize Git Performance
-RUN git config --global http.postBuffer 524288000 && \    # Increase Git buffer size (500 MB)
-    git config --global core.compression 0 && \           # Disable Git compression
-    git config --global http.lowSpeedLimit 1000 && \      # Set low-speed limit (1000 bytes/second)
-    git config --global http.lowSpeedTime 60              # Set low-speed time (60 seconds)
+RUN git config --global http.postBuffer 524288000 && \    
+    git config --global core.compression 0 && \           
+    git config --global http.lowSpeedLimit 1000 && \      
+    git config --global http.lowSpeedTime 60              
 
 
 WORKDIR /app
