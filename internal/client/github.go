@@ -286,6 +286,7 @@ func (g *GithubClient) DownloadGithubRepository(
 		if err := g.runCmd(
 			"git",
 			"clone",
+			"--depth", "1", // do shallow clone with depth 1
 			"-b",
 			branchName,
 			githubRepoUrl,
