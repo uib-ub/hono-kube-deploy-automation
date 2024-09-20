@@ -286,6 +286,7 @@ func (g *GithubClient) DownloadGithubRepository(
 		if err := g.runCmd(
 			"git",
 			"clone",
+			"--depth", "1", // do shallow clone with depth 1
 			"-b",
 			branchName,
 			githubRepoUrl,
@@ -306,6 +307,11 @@ func (g *GithubClient) DownloadGithubRepository(
 // runCmd runs a shell command with arguments.
 func (g *GithubClient) runCmd(command string, args ...string) error {
 	cmd := exec.Command(command, args...)
+
+	// Set up pipes to capture output
+	cmd.Stdout = os.Stdout // Redirect stdout to the console
+	cmd.Stderr = os.Stderr // Redirect stderr to the console
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("command %s failed: %w", command, err)
 	}

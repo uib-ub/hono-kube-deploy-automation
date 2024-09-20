@@ -23,6 +23,8 @@ spec:
         env:
         - name: DOCKER_HOST
           value: "unix:///var/run/docker.sock"
+        - name: DOCKER_BUILDKIT
+          value: "1" # enable BuildKit for building docker images efficiently.
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
@@ -45,12 +47,18 @@ spec:
           privileged: true # Required for Docker-in-Docker unless using socket mounting
           readOnlyRootFilesystem: false # Set to true if your app does not need to write to the filesystem
         resources:
-          limits:
-            cpu: "1000m"
-            memory: "1024Mi"
           requests:
-            cpu: "500m"
-            memory: "512Mi"
+            memory: "1Gi"
+            cpu: "1"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+            # requests:
+            #   cpu: "500m"
+            #   memory: "512Mi"
+            # limits:
+            #   cpu: "1000m"
+            #   memory: "1024Mi"
         volumeMounts:
         - name: lib-modules
           mountPath: /lib/modules
@@ -60,14 +68,18 @@ spec:
           httpGet:
             path: /health
             port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+          periodSeconds: 20
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /ready
             port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 5
+          initialDelaySeconds: 20
+          timeoutSeconds: 5
+          periodSeconds: 10
+          failureThreshold: 5
       imagePullSecrets:
       - name: github-deploy-regcred # Refers to a secret (github-deploy-regcred) to authenticate with the container registry for pulling images.
       volumes:

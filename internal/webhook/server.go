@@ -239,7 +239,16 @@ func (s *Server) getImageName(repoFullName string) string {
 
 // getGithubRepo clones or pulls the GitHub repository to the local source path based on the branch name.
 func (s *Server) getGithubRepo(ghRepoFullName, ghBranch string) error {
-	return s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoDir, ghRepoFullName, ghBranch)
+
+	return s.retryKubeResources(5, 10*time.Second, func() error {
+		// clone repo.
+		err := s.GithubClient.DownloadGithubRepository(s.Options.LocalRepoDir, ghRepoFullName, ghBranch)
+		if err != nil {
+			log.Warnf("Failed to download Github repository: %v, retrying...", err)
+			return err
+		}
+		return nil
+	})
 }
 
 // handleKustomization generates Kubernetes resources for the specified namespace using Kustomize.

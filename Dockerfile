@@ -28,6 +28,13 @@ RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -
     chmod +x ./kubectl && \
     mv ./kubectl /usr/local/bin/kubectl
 
+# Optimize Git Performance
+RUN git config --global http.postBuffer 524288000 && \    
+    git config --global core.compression 0 && \           
+    git config --global http.lowSpeedLimit 1000 && \      
+    git config --global http.lowSpeedTime 60              
+
+
 WORKDIR /app
 
 COPY --from=go-builder /app/github-deploy-hono /github-deploy-hono
