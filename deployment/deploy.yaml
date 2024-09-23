@@ -44,7 +44,7 @@ spec:
               key: rollbar-token
               optional: false
         securityContext:
-          privileged: true # Required for Docker-in-Docker unless using socket mounting
+          privileged: false # Required for Docker-in-Docker unless using socket mounting
           readOnlyRootFilesystem: false # Set to true if your app does not need to write to the filesystem
         resources:
           requests:
@@ -64,7 +64,7 @@ spec:
             port: 8080
           initialDelaySeconds: 60
           timeoutSeconds: 5
-          periodSeconds: 20
+          periodSeconds: 30
           failureThreshold: 5
         readinessProbe:
           httpGet:
