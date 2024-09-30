@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: github-deploy-hono
+      app: webhook-kube-auto-deploy
   template:
     metadata:
       labels:
-        app: github-deploy-hono
+        app: webhook-kube-auto-deploy
     spec:
-      serviceAccountName: github-deploy-hono # Specifies the service account for the pod.
+      serviceAccountName: webhook-kube-auto-deploy # Specifies the service account for the pod.
       containers:
-      - name: github-deploy-hono
+      - name: webhook-kube-auto-deploy
         image: ghcr.io/uib-ub/uib-ub/hono-kube-deploy-automation:latest
         imagePullPolicy: Always
         ports:
@@ -44,7 +44,7 @@ spec:
               key: rollbar-token
               optional: false
         securityContext:
-          privileged: true # Required for Docker-in-Docker unless using socket mounting
+          privileged: false # Required for Docker-in-Docker unless using socket mounting
           readOnlyRootFilesystem: false # Set to true if your app does not need to write to the filesystem
         resources:
           requests:
@@ -53,12 +53,6 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "2"
-            # requests:
-            #   cpu: "500m"
-            #   memory: "512Mi"
-            # limits:
-            #   cpu: "1000m"
-            #   memory: "1024Mi"
         volumeMounts:
         - name: lib-modules
           mountPath: /lib/modules
@@ -70,7 +64,7 @@ spec:
             port: 8080
           initialDelaySeconds: 60
           timeoutSeconds: 5
-          periodSeconds: 20
+          periodSeconds: 30
           failureThreshold: 5
         readinessProbe:
           httpGet:
@@ -95,45 +89,54 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
 spec:
   type: ClusterIP
   ports:
-  - name: github-deploy-hono-http
+  - name: webhook-kube-auto-deploy-http
     port: 80
     protocol: TCP
     targetPort: 8080
   selector:
-    app: github-deploy-hono
+    app: webhook-kube-auto-deploy
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
 rules:
 - apiGroups: [""]
-  resources: ["namespaces"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["*"] # ["apps"]
-  resources: ["*"] # ["deployments"]
-  verbs: ["*"] # ["get", "list", "watch", "create", "update", "patch", "delete"]
+  resources: ["namespaces", "services", "pods", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"] # Permissions to check pod status
+- apiGroups: ["", "apps", "networking.k8s.io"]
+  resources: ["namespaces", "services", "configmaps", "deployments", "ingresses", "pods"]
+  verbs: ["delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
 subjects:
 - kind: ServiceAccount
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
   namespace: default
 roleRef:
   kind: ClusterRole
-  name: github-deploy-hono
+  name: webhook-kube-auto-deploy
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: networking.k8s.io/v1
@@ -142,6 +145,7 @@ metadata:
   name: api-git-deploy-ingress
   annotations:
     cert-manager.io/cluster-issuer: lets-encrypt
+    # nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   tls:
   - hosts:
@@ -155,7 +159,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: github-deploy-hono
+            name: webhook-kube-auto-deploy
             port:
               number: 80
 
