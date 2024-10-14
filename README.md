@@ -330,8 +330,7 @@ There resources defined in `deploy.yaml` file set up a Kubernetes deployment for
 
 ## CICD workflow
 
-![cicd-workflow](https://github.com/user-attachments/assets/e4e2fa66-d16d-4513-bf93-e3771e590fa3)
-
+![cicd-workflow](https://github.com/user-attachments/assets/4ca71f1f-fa82-48e8-871e-dae112321ae9)
 
 ## Health Checks
 
