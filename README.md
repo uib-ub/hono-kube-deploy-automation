@@ -18,9 +18,10 @@
 - [CICD workflow](#CICD-workflow)
 - [Health Checks](#health-checks)
 
+
 ## Overview
 
-This Go application is designed to automate the deployment of the `hono-api` to a Kubernetes cluster. It integrates with Go clients including GitHub, Docker, Kustomize, and Kubernetes to handle the deployment processes triggered by specific GitHub webhook events. The application listens for specific GitHub webhook events and triggers actions such as building Docker images, deploying Kubernetes resources, and managing workflows and package images. This go implementation uses the code style following the [Google Golong Style Guide](https://go.dev/wiki/CodeReviewComments).
+This Go application is designed to automate the deployment of the `hono-api` to a Kubernetes cluster. It integrates with Go clients including GitHub, Docker, Kustomize, and Kubernetes to handle the deployment processes triggered by specific GitHub webhook events. The application listens for specific GitHub webhook events and triggers actions such as building Docker images, deploying Kubernetes resources, and managing workflows and package images. This go implementation uses the code style following the [Google Golong Style Guide](https://go.dev/wiki/CodeReviewComments). For seminar slides, see:  [View the seminar slides](https://github.com/uib-ub/hono-kube-deploy-automation/blob/main/seminar-slides/kubernetes-seminar-part2-18.09.24.pdf).
 
 ## Features
 
