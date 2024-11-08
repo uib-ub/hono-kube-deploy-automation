@@ -332,7 +332,7 @@ jobs:
       - name: Force Kubernetes to pull latest image if source code changed
         if: needs.check-changes.outputs.source_changes =='true'
         run: |
-          DEPLOYMENT_NAME="github-deploy-hono"
+          DEPLOYMENT_NAME="webhook-kube-auto-deploy"
           NAMESPACE="default"
           echo "Forcing Kubernetes to pull the latest image..."
           kubectl patch deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" \
