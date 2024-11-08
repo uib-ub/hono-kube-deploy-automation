@@ -307,16 +307,12 @@ func (s *Server) issueCommentEventCleanup(data *eventData, kubeResources *[]stri
 		}
 	}(data)
 
+	wg.Add(3)
 	// Delete the deployment on Kubernetes concurrently.
-	wg.Add(1)
 	go s.cleanupKubeResources(&wg, errChan, data, kubeResources)
-
 	// Clean up the local source repository concurrently.
-	wg.Add(1)
 	go s.cleanupLocalRepository(&wg, errChan)
-
 	// Clean up the container image on GitHub packages concurrently.
-	wg.Add(1)
 	go s.cleanupImageOnGithub(&wg, errChan, data)
 
 	// collect errors occurring during cleanup.
