@@ -4,13 +4,12 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"github.com/rollbar/rollbar-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/client"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/config"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/util"
 	"github.com/uib-ub/hono-kube-deploy-automation/internal/webhook"
-
-	"github.com/rollbar/rollbar-go"
 )
 
 // Declare isReady as a global variable to track readiness status
