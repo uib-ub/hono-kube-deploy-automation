@@ -117,7 +117,12 @@ func TestKustomizerBuild(t *testing.T) {
 			// Setup the kustomization directory for this test case
 			kustomizationDir := tc.setupFunc(t)
 			if kustomizationDir != "invalid/directory/path" {
-				defer os.RemoveAll(kustomizationDir) // Clean up after test
+				// Clean up after test
+				defer func() {
+					if err := os.RemoveAll(kustomizationDir); err != nil {
+						t.Logf("Failed to clean up %s: %v", kustomizationDir, err)
+					}
+				}()
 			}
 
 			kustomizer := NewKustomizer(kustomizationDir)

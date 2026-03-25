@@ -1,0 +1,16 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  exclusions:
+    rules:
+      - path: internal/client/docker\.go
+        text: 'SA1019: archive\.'
+      - path: internal/client/docker_mock_test\.go
+        text: 'SA1019: archive\.'

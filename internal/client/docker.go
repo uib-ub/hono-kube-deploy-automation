@@ -8,7 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/docker/docker/api/types"
+	// "github.com/docker/docker/api/types"
+	buildtypes "github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
@@ -27,7 +28,7 @@ type DockerOptions struct {
 
 // DockerAPIClient defines the methods that your DockerClient will use.
 type DockerAPIClient interface {
-	ImageBuild(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (types.ImageBuildResponse, error)
+	ImageBuild(ctx context.Context, buildContext io.Reader, options buildtypes.ImageBuildOptions) (buildtypes.ImageBuildResponse, error)
 	ImagePush(ctx context.Context, image string, options image.PushOptions) (io.ReadCloser, error)
 	ImageRemove(ctx context.Context, imageID string, options image.RemoveOptions) ([]image.DeleteResponse, error)
 	ImagesPrune(ctx context.Context, pruneFilters filters.Args) (image.PruneReport, error)
@@ -94,9 +95,14 @@ func (d *DockerClient) ImageBuild(
 	if err != nil {
 		return fmt.Errorf("failed to create tar archive: %w", err)
 	}
+	defer func() {
+		if err := tar.Close(); err != nil {
+			log.Warnf("failed to close tar reader: %v", err)
+		}
+	}()
 
 	// Define options for building the image.
-	buildOptions := types.ImageBuildOptions{
+	buildOptions := buildtypes.ImageBuildOptions{
 		Dockerfile: d.DockerOptions.Dockerfile,
 		Tags:       []string{registryNameWithTag},
 		//		Remove:      true, // remove intermediate containers created during the build process
@@ -111,7 +117,11 @@ func (d *DockerClient) ImageBuild(
 	}
 
 	if buildRes.Body != nil {
-		defer buildRes.Body.Close()
+		defer func() {
+			if err := buildRes.Body.Close(); err != nil {
+				log.Warnf("failed to close build response body: %v", err)
+			}
+		}()
 		// Stream the build output to the console.
 		if _, err := io.Copy(os.Stdout, buildRes.Body); err != nil {
 			return fmt.Errorf("failed to copy build response: %w", err)
@@ -158,7 +168,11 @@ func (d *DockerClient) ImagePush(registryOwner, imageName, imageTag string) erro
 	if err != nil {
 		return fmt.Errorf("failed to push image: %w", err)
 	}
-	defer pushRes.Close()
+	defer func() {
+		if err := pushRes.Close(); err != nil {
+			log.Warnf("failed to close push response body: %v", err)
+		}
+	}()
 
 	// Stream the push output to the console.
 	if _, err := io.Copy(os.Stdout, pushRes); err != nil {

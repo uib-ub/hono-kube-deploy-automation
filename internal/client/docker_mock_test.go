@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types"
+	buildtypes "github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/pkg/archive"
@@ -20,9 +20,9 @@ type MockDockerClient struct {
 }
 
 // Mock methods for DockerClient interface
-func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (types.ImageBuildResponse, error) {
+func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options buildtypes.ImageBuildOptions) (buildtypes.ImageBuildResponse, error) {
 	args := m.Called(ctx, buildContext, options)
-	return args.Get(0).(types.ImageBuildResponse), args.Error(1)
+	return args.Get(0).(buildtypes.ImageBuildResponse), args.Error(1)
 }
 
 func (m *MockDockerClient) ImagePush(ctx context.Context, image string, options image.PushOptions) (io.ReadCloser, error) {
@@ -96,7 +96,7 @@ func TestDockerMockLifecycle(t *testing.T) {
 		t.Run("ImageBuild", func(t *testing.T) {
 			// Setup mock response for a successful image build.
 			// The Docker client will return a response with "Build successful" as the body.
-			mockDocker.On("ImageBuild", mock.Anything, mock.Anything, mock.Anything).Return(types.ImageBuildResponse{
+			mockDocker.On("ImageBuild", mock.Anything, mock.Anything, mock.Anything).Return(buildtypes.ImageBuildResponse{
 				Body: io.NopCloser(strings.NewReader("Build successful")),
 			}, nil)
 

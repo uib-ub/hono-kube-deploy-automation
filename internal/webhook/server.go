@@ -453,7 +453,7 @@ func (s *Server) deployKubeResources(data *eventData, kubeResources *[]string) e
 		}
 		log.Infof("data image tag: %s", data.imageTag)
 		if strings.Contains(res, "kind: Deployment") && data.imageTag != "latest" {
-			res = strings.Replace(res, "latest", data.imageTag, -1)
+			res = strings.ReplaceAll(res, "latest", data.imageTag)
 			log.Debugf("replaced image tag: %s in res: %s", data.imageTag, res)
 		}
 		log.Debugf("Deploying resource:\n%s\n", res)
@@ -494,7 +494,7 @@ func (s *Server) cleanupKubeResources(wg *sync.WaitGroup, errChan chan<- error, 
 
 	for _, res := range *kubeResources {
 		if strings.Contains(res, "kind: Deployment") {
-			res = strings.Replace(res, "latest", data.imageTag, -1)
+			res = strings.ReplaceAll(res, "latest", data.imageTag)
 		}
 		log.Debugf("Delete resource:\n%s\n", res)
 		err := s.retryKubeResources(5, 5*time.Second, func() error {

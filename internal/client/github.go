@@ -73,7 +73,7 @@ func (g *GithubClient) DeletePackageImage(
 	encodedPackageName := url.PathEscape(packageName)
 	opts := &github.PackageListOptions{PackageType: &packageType}
 	// Search for version ID of the package based on tag
-	packageVersions, _, err := g.Client.Users.PackageGetAllVersions(
+	packageVersions, _, err := g.Users.PackageGetAllVersions(
 		ctx,
 		owner,
 		packageType,
@@ -87,7 +87,7 @@ func (g *GithubClient) DeletePackageImage(
 		for _, t := range pv.GetMetadata().GetContainer().Tags {
 			if t == tag {
 				// Delete the package version based on the tag
-				_, err := g.Client.Users.PackageDeleteVersion(
+				_, err := g.Users.PackageDeleteVersion(
 					ctx,
 					owner,
 					packageType,
@@ -118,7 +118,7 @@ func (g *GithubClient) TriggerWorkFlow(
 	opts := &github.CreateWorkflowDispatchEventRequest{
 		Ref: branch,
 	}
-	if _, err := g.Client.Actions.CreateWorkflowDispatchEventByFileName(
+	if _, err := g.Actions.CreateWorkflowDispatchEventByFileName(
 		ctx,
 		owner,
 		repo,
@@ -243,7 +243,7 @@ func (g *GithubClient) getLatestWorkflowRunStatus(
 	branch string,
 ) (string, string, error) {
 	// Get the latest workflow run for the workflow ID
-	runs, _, err := g.Client.Actions.ListWorkflowRunsByFileName(
+	runs, _, err := g.Actions.ListWorkflowRunsByFileName(
 		ctx,
 		owner,
 		repo,

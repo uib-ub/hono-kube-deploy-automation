@@ -22,7 +22,10 @@ func WebhookHandler(s *Server) http.HandlerFunc {
 			return
 		}
 		// Respond immediately to GitHub to avoid triggering a timeout.
-		fmt.Fprintf(w, "Webhook event received and being processed!")
+		if _, err := fmt.Fprintf(w, "Webhook event received and being processed!"); err != nil {
+			http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 
 		// Process webhook events asynchronously in a new goroutine.
