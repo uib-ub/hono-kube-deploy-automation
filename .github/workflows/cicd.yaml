@@ -35,7 +35,7 @@ jobs:
           else
             echo "context=main" >> $GITHUB_ENV
           fi
-        
+
       # Step 2: Conditionally checkout the code based on the context (PR or main branch)
       - name: Checkout code for PR
         if: env.context == 'pr'
@@ -52,7 +52,7 @@ jobs:
 
       - name: show git log
         run: git log -5 --oneline
-      
+
       - name: Get the correct commits to compare
         id: get_commits
         run: |
@@ -88,7 +88,7 @@ jobs:
             echo "deployment_changes=false" >> $GITHUB_ENV
             echo "deployment_changes=false" >> $GITHUB_OUTPUT
           fi
-          
+
           # Check if source code files have changed (cmd/, internal/, Dockerfile, go.mod, go.sum)
           if git diff --name-only ${{ env.PREV_COMMIT  }} ${{  env.LATEST_COMMIT }} | grep -E '^(cmd/|internal/|Dockerfile|go.mod|go.sum)'; then
             echo "source_changes=true"
@@ -110,11 +110,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.26.1'
 
       - name: Install golangci-lint
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.11.4
           golangci-lint --version
 
       - name: Run golangci-lint
@@ -130,7 +130,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.26.1'
 
     - name: Install dependencies
       run: |
@@ -282,8 +282,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-kube-deploy
-    if: needs.check-changes.outputs.deployment_changes =='true' || needs.check-changes.outputs.source_changes =='true' 
-    steps: 
+    if: needs.check-changes.outputs.deployment_changes =='true' || needs.check-changes.outputs.source_changes =='true'
+    steps:
       - name: Kubectl tool installer
         uses: Azure/setup-kubectl@v3
 
