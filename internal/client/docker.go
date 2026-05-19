@@ -50,10 +50,7 @@ type DockerClient struct {
 // NewDockerClient creates a new Docker client with the given options and tarball creation function.
 // If no custom tarball function is provided, the default archive.TarWithOptions function is used.
 func NewDockerClient(dockerOptions *DockerOptions, tarFunc TarWithOptionsFunc) (*DockerClient, error) {
-	client, err := dockercli.NewClientWithOpts(
-		dockercli.FromEnv,
-		dockercli.WithAPIVersionNegotiation(),
-	)
+	client, err := dockercli.New(dockercli.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
