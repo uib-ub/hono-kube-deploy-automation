@@ -3,16 +3,29 @@ package client
 import (
 	"context"
 	"io"
+	"iter"
 	"strings"
 	"testing"
 
-	buildtypes "github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/pkg/archive"
+	"github.com/moby/go-archive"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/jsonstream"
+	dockercli "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+// stubPushResponse implements dockercli.ImagePushResponse over an io.ReadCloser
+// for tests; JSONMessages yields nothing and Wait is a no-op.
+type stubPushResponse struct {
+	io.ReadCloser
+}
+
+func (stubPushResponse) JSONMessages(ctx context.Context) iter.Seq2[jsonstream.Message, error] {
+	return func(yield func(jsonstream.Message, error) bool) {}
+}
+
+func (stubPushResponse) Wait(ctx context.Context) error { return nil }
 
 // Mock DockerClient
 type MockDockerClient struct {
@@ -20,24 +33,24 @@ type MockDockerClient struct {
 }
 
 // Mock methods for DockerClient interface
-func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options buildtypes.ImageBuildOptions) (buildtypes.ImageBuildResponse, error) {
+func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options dockercli.ImageBuildOptions) (dockercli.ImageBuildResult, error) {
 	args := m.Called(ctx, buildContext, options)
-	return args.Get(0).(buildtypes.ImageBuildResponse), args.Error(1)
+	return args.Get(0).(dockercli.ImageBuildResult), args.Error(1)
 }
 
-func (m *MockDockerClient) ImagePush(ctx context.Context, image string, options image.PushOptions) (io.ReadCloser, error) {
+func (m *MockDockerClient) ImagePush(ctx context.Context, image string, options dockercli.ImagePushOptions) (dockercli.ImagePushResponse, error) {
 	args := m.Called(ctx, image, options)
-	return args.Get(0).(io.ReadCloser), args.Error(1)
+	return args.Get(0).(dockercli.ImagePushResponse), args.Error(1)
 }
 
-func (m *MockDockerClient) ImageRemove(ctx context.Context, imageID string, options image.RemoveOptions) ([]image.DeleteResponse, error) {
+func (m *MockDockerClient) ImageRemove(ctx context.Context, imageID string, options dockercli.ImageRemoveOptions) (dockercli.ImageRemoveResult, error) {
 	args := m.Called(ctx, imageID, options)
-	return args.Get(0).([]image.DeleteResponse), nil
+	return args.Get(0).(dockercli.ImageRemoveResult), args.Error(1)
 }
 
-func (m *MockDockerClient) ImagesPrune(ctx context.Context, pruneFilters filters.Args) (image.PruneReport, error) {
-	args := m.Called(ctx, pruneFilters)
-	return args.Get(0).(image.PruneReport), args.Error(1)
+func (m *MockDockerClient) ImagePrune(ctx context.Context, opts dockercli.ImagePruneOptions) (dockercli.ImagePruneResult, error) {
+	args := m.Called(ctx, opts)
+	return args.Get(0).(dockercli.ImagePruneResult), args.Error(1)
 }
 
 var dockerMockTestCases = []struct {
@@ -96,7 +109,7 @@ func TestDockerMockLifecycle(t *testing.T) {
 		t.Run("ImageBuild", func(t *testing.T) {
 			// Setup mock response for a successful image build.
 			// The Docker client will return a response with "Build successful" as the body.
-			mockDocker.On("ImageBuild", mock.Anything, mock.Anything, mock.Anything).Return(buildtypes.ImageBuildResponse{
+			mockDocker.On("ImageBuild", mock.Anything, mock.Anything, mock.Anything).Return(dockercli.ImageBuildResult{
 				Body: io.NopCloser(strings.NewReader("Build successful")),
 			}, nil)
 
@@ -110,8 +123,9 @@ func TestDockerMockLifecycle(t *testing.T) {
 
 		t.Run("ImagePush", func(t *testing.T) {
 			// Setup mock response
-			mockDocker.On("ImagePush", mock.Anything, mock.Anything, mock.Anything).Return(io.NopCloser(
-				strings.NewReader("Push successful")), nil)
+			pushResp := stubPushResponse{ReadCloser: io.NopCloser(strings.NewReader("Push successful"))}
+			mockDocker.On("ImagePush", mock.Anything, mock.Anything, mock.Anything).Return(
+				dockercli.ImagePushResponse(pushResp), nil)
 
 			err := dockerClient.ImagePush(tc.registryOwner, tc.imageName, tc.imageTag)
 			assert.NoError(t, err, "expected no error from ImagePush")
@@ -121,13 +135,16 @@ func TestDockerMockLifecycle(t *testing.T) {
 
 		t.Run("ImageDelete", func(t *testing.T) {
 			// Setup mock responses
-			mockDocker.On("ImageRemove", mock.Anything, mock.Anything, mock.Anything).Return([]image.DeleteResponse{}, nil)
-			mockDocker.On("ImagesPrune", mock.Anything, mock.Anything).Return(image.PruneReport{
-				SpaceReclaimed: 100,
-				ImagesDeleted: []image.DeleteResponse{
-					{
-						Untagged: "untagged-image-id",
-						Deleted:  "deleted-image-id",
+			mockDocker.On("ImageRemove", mock.Anything, mock.Anything, mock.Anything).Return(
+				dockercli.ImageRemoveResult{Items: []image.DeleteResponse{}}, nil)
+			mockDocker.On("ImagePrune", mock.Anything, mock.Anything).Return(dockercli.ImagePruneResult{
+				Report: image.PruneReport{
+					SpaceReclaimed: 100,
+					ImagesDeleted: []image.DeleteResponse{
+						{
+							Untagged: "untagged-image-id",
+							Deleted:  "deleted-image-id",
+						},
 					},
 				},
 			}, nil)

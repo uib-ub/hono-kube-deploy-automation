@@ -16,33 +16,27 @@ RUN apk add -u -t build-tools curl git && \
   rm -rf /var/cache/apk/*
 
 #
-# Stage 2: Setup the runtime environment
+# Stage 2: Minimal runtime image
 #
-FROM docker:19.03.12-dind
+# Only ships what the binary actually uses at runtime:
+#   - ca-certificates: TLS to GitHub + GHCR
+#   - git:             shelled out from internal/client/github.go
+# Docker daemon access is provided by mounting the host's /var/run/docker.sock
+# (see deployment/deploy.yaml and docker-compose.yaml). The Go binary talks to
+# that daemon via the moby/moby/client SDK — no docker CLI, no DinD, no kubectl.
+FROM alpine:3.20
 
-# Install system dependencies
-RUN apk --no-cache add ca-certificates bash curl git
-
-# Install kubectl from the official source
-RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" && \
-  chmod +x ./kubectl && \
-  mv ./kubectl /usr/local/bin/kubectl
-
-# Optimize Git Performance
-RUN git config --global http.postBuffer 524288000 && \
-  git config --global core.compression 0 && \
-  git config --global http.lowSpeedLimit 1000 && \
-  git config --global http.lowSpeedTime 60
-
+RUN apk --no-cache add ca-certificates git && \
+  git config --system http.postBuffer 524288000 && \
+  git config --system core.compression 0 && \
+  git config --system http.lowSpeedLimit 1000 && \
+  git config --system http.lowSpeedTime 60
 
 WORKDIR /app
 
 COPY --from=go-builder /app/github-deploy-hono /github-deploy-hono
 COPY --from=go-builder /app/internal/config/config.yaml /app/internal/config/config.yaml
 
-# Make sure your Go application is executable
 RUN chmod +x /github-deploy-hono
 
-# Run Docker daemon entrypoint and then your application
-ENTRYPOINT ["dockerd-entrypoint.sh"]
-CMD ["/github-deploy-hono"]
+ENTRYPOINT ["/github-deploy-hono"]
