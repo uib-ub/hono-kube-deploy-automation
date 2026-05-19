@@ -8,13 +8,9 @@ import (
 	"io"
 	"os"
 
-	// "github.com/docker/docker/api/types"
-	buildtypes "github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/registry"
-	dockercli "github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
+	"github.com/moby/go-archive"
+	"github.com/moby/moby/api/types/registry"
+	dockercli "github.com/moby/moby/client"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -28,10 +24,10 @@ type DockerOptions struct {
 
 // DockerAPIClient defines the methods that your DockerClient will use.
 type DockerAPIClient interface {
-	ImageBuild(ctx context.Context, buildContext io.Reader, options buildtypes.ImageBuildOptions) (buildtypes.ImageBuildResponse, error)
-	ImagePush(ctx context.Context, image string, options image.PushOptions) (io.ReadCloser, error)
-	ImageRemove(ctx context.Context, imageID string, options image.RemoveOptions) ([]image.DeleteResponse, error)
-	ImagesPrune(ctx context.Context, pruneFilters filters.Args) (image.PruneReport, error)
+	ImageBuild(ctx context.Context, buildContext io.Reader, options dockercli.ImageBuildOptions) (dockercli.ImageBuildResult, error)
+	ImagePush(ctx context.Context, image string, options dockercli.ImagePushOptions) (dockercli.ImagePushResponse, error)
+	ImageRemove(ctx context.Context, imageID string, options dockercli.ImageRemoveOptions) (dockercli.ImageRemoveResult, error)
+	ImagePrune(ctx context.Context, opts dockercli.ImagePruneOptions) (dockercli.ImagePruneResult, error)
 }
 
 // Ensure that dockercli.Client implements DockerAPIClient
@@ -102,7 +98,7 @@ func (d *DockerClient) ImageBuild(
 	}()
 
 	// Define options for building the image.
-	buildOptions := buildtypes.ImageBuildOptions{
+	buildOptions := dockercli.ImageBuildOptions{
 		Dockerfile: d.DockerOptions.Dockerfile,
 		Tags:       []string{registryNameWithTag},
 		//		Remove:      true, // remove intermediate containers created during the build process
@@ -158,7 +154,7 @@ func (d *DockerClient) ImagePush(registryOwner, imageName, imageTag string) erro
 	}
 
 	authBase64 := base64.URLEncoding.EncodeToString(encodedAuthConfig)
-	pushOptions := image.PushOptions{
+	pushOptions := dockercli.ImagePushOptions{
 		RegistryAuth: authBase64,
 	}
 
@@ -194,7 +190,7 @@ func (d *DockerClient) ImageDelete(registryOwner, imageName, imageTag string) er
 		imageTag,
 	)
 
-	removeOptions := image.RemoveOptions{
+	removeOptions := dockercli.ImageRemoveOptions{
 		Force:         true,
 		PruneChildren: true,
 	}
@@ -219,19 +215,20 @@ func (d *DockerClient) ImageDelete(registryOwner, imageName, imageTag string) er
 func (d *DockerClient) pruneDanglingImages() error {
 	// Set up filter to only target dangling images
 	// 'Dangling' images are those tagged with <none>
-	pruneFilters := filters.NewArgs()
-	pruneFilters.Add("dangling", "true") // This targets only untagged images
+	pruneOpts := dockercli.ImagePruneOptions{
+		Filters: dockercli.Filters{}.Add("dangling", "true"),
+	}
 
 	// Execute the prune operation
-	report, err := d.Client.ImagesPrune(context.Background(), pruneFilters)
+	result, err := d.Client.ImagePrune(context.Background(), pruneOpts)
 	if err != nil {
 		return fmt.Errorf("failed to prune dangling images: %w", err)
 	}
 	// Log the total space reclaimed by pruning
-	log.Infof("Pruned dangling Docker images, reclaimed %d bytes", report.SpaceReclaimed)
+	log.Infof("Pruned dangling Docker images, reclaimed %d bytes", result.Report.SpaceReclaimed)
 
 	// Log details of pruned images for verification
-	for _, image := range report.ImagesDeleted {
+	for _, image := range result.Report.ImagesDeleted {
 		if image.Untagged != "" {
 			log.Infof("Untagged image pruned: %s", image.Untagged)
 		}

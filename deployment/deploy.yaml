@@ -54,8 +54,6 @@ spec:
             memory: "2Gi"
             cpu: "2"
         volumeMounts:
-        - name: lib-modules
-          mountPath: /lib/modules
         - name: docker-sock
           mountPath: /var/run/docker.sock
         livenessProbe:
@@ -77,10 +75,6 @@ spec:
       imagePullSecrets:
       - name: github-deploy-regcred # Refers to a secret (github-deploy-regcred) to authenticate with the container registry for pulling images.
       volumes:
-      - name: lib-modules
-        hostPath:
-          path: /lib/modules
-          type: Directory
       - name: docker-sock
         hostPath:
           path: /var/run/docker.sock
